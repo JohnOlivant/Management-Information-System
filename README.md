@@ -7,6 +7,7 @@ A forward-looking finance view for small UK construction firms and small manufac
 - [Product description](docs/product-description.md): what the product is, who it is for, requirements and releases. The input to the development plan.
 - [Systems briefing](docs/research/systems-briefing.md): the existing systems (quoting, scheduler, timesheet, finance command centre, Xero gateway), how they connect and the gaps.
 - [Market check](docs/research/market-check.md): evidence of the problem, competitors and risks.
+- [Roadmap](docs/roadmap.md): where each system stands, comparison with Simpro and Workever, the five-stage roadmap and the decisions it needs.
 
 ## Related repositories
 
