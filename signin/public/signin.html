@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sign in</title>
+<link rel="stylesheet" href="/signin.css">
+<script src="/signin.js" defer></script>
+</head>
+<body>
+<div class="shell">
+  <aside class="brand" aria-label="App">
+    <div class="brand-top">
+      <span class="mark" id="brand-mark" aria-hidden="true"></span>
+      <div>
+        <p class="suite" id="suite-name"></p>
+        <p class="app-name" id="app-name"></p>
+      </div>
+    </div>
+    <p class="tagline" id="app-tagline"></p>
+    <div class="suite-list">
+      <p class="suite-label">One account for</p>
+      <ul id="suite-apps"></ul>
+    </div>
+  </aside>
+
+  <main class="panel">
+    <div id="loading" class="card"><p class="muted">Loading…</p></div>
+
+    <section id="signin" class="card" hidden aria-labelledby="signin-title">
+      <h1 id="signin-title">Sign in</h1>
+      <p class="muted" id="signin-intro">Use the email and password your firm set up for you.</p>
+      <div class="notice" id="signin-notice" role="status" hidden></div>
+      <form id="signin-form" novalidate>
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="username" inputmode="email" required>
+        <label for="password">Password</label>
+        <div class="password-row">
+          <input id="password" name="password" type="password" autocomplete="current-password" required>
+          <button type="button" class="reveal" aria-controls="password" aria-pressed="false">Show</button>
+        </div>
+        <p class="error" role="alert" hidden></p>
+        <button type="submit" class="primary">Sign in</button>
+      </form>
+      <details class="help">
+        <summary>Forgotten your password?</summary>
+        <p>Ask your firm's administrator. They reset it and give you a temporary password, which you change the first time you sign in.</p>
+      </details>
+    </section>
+
+    <section id="change" class="card" hidden aria-labelledby="change-title">
+      <h1 id="change-title">Choose a new password</h1>
+      <p class="muted" id="change-intro"></p>
+      <form id="change-form" novalidate>
+        <label for="current">Current password</label>
+        <input id="current" name="current" type="password" autocomplete="current-password" required>
+        <label for="new">New password</label>
+        <input id="new" name="new" type="password" autocomplete="new-password" required aria-describedby="new-hint">
+        <p class="hint" id="new-hint"></p>
+        <label for="again">New password again</label>
+        <input id="again" name="again" type="password" autocomplete="new-password" required>
+        <p class="error" role="alert" hidden></p>
+        <button type="submit" class="primary">Save password</button>
+      </form>
+      <p class="small" id="change-cancel" hidden><a href="/">Cancel</a></p>
+    </section>
+
+    <section id="launcher" class="card" hidden aria-labelledby="launcher-title">
+      <h1 id="launcher-title">Choose an app</h1>
+      <p class="muted" id="launcher-who"></p>
+      <div class="notice warn" id="launcher-notice" role="status" hidden></div>
+      <ul class="app-grid" id="launcher-apps"></ul>
+      <p class="muted" id="launcher-empty" hidden>Your account doesn't open any apps yet. Ask your firm's administrator.</p>
+      <div class="row">
+        <a href="/password" class="text-link" id="launcher-password">Change password</a>
+        <button type="button" class="secondary" id="launcher-signout">Sign out</button>
+      </div>
+    </section>
+
+    <section id="signout" class="card" hidden aria-labelledby="signout-title">
+      <h1 id="signout-title">Sign out</h1>
+      <p class="muted">This signs you out of every app on this device: Quoting, Scheduling, Timesheets and Management Information.</p>
+      <p class="error" role="alert" hidden></p>
+      <div class="row">
+        <button type="button" class="primary" id="signout-confirm">Sign out</button>
+        <a class="text-link" id="signout-cancel" href="/">Stay signed in</a>
+      </div>
+    </section>
+
+    <section id="signedout" class="card" hidden aria-labelledby="signedout-title">
+      <h1 id="signedout-title">You're signed out</h1>
+      <p class="muted">You can close this window, or sign in again.</p>
+      <a class="button primary" id="signedout-again" href="/">Sign in again</a>
+    </section>
+
+    <p class="footer" id="footer"></p>
+  </main>
+</div>
+</body>
+</html>
