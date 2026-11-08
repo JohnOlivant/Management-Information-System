@@ -1,0 +1,42 @@
+{
+  "suiteName": "Rule29",
+  "suiteMark": "R29",
+  "apps": [
+    {
+      "id": "mis",
+      "name": "Management Information",
+      "tagline": "Cash, capacity and margin for the months ahead",
+      "mark": "MI",
+      "accent": "#4f4386",
+      "accentInk": "#ffffff",
+      "homeUrl": "http://localhost:3400/"
+    },
+    {
+      "id": "quoting",
+      "name": "Quoting",
+      "tagline": "Estimates, proposals and customer acceptance",
+      "mark": "Q",
+      "accent": "#2f6a8a",
+      "accentInk": "#ffffff",
+      "homeUrl": "http://localhost:3100/"
+    },
+    {
+      "id": "scheduling",
+      "name": "Scheduling",
+      "tagline": "Crews, skills and job dates",
+      "mark": "S",
+      "accent": "#3f7d58",
+      "accentInk": "#ffffff",
+      "homeUrl": "http://localhost:3200/"
+    },
+    {
+      "id": "timesheets",
+      "name": "Timesheets",
+      "tagline": "Hours, expenses, leave and payroll approval",
+      "mark": "T",
+      "accent": "#bd7112",
+      "accentInk": "#16222c",
+      "homeUrl": "http://localhost:3000/"
+    }
+  ]
+}
