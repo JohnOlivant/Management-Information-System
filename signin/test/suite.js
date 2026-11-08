@@ -165,6 +165,42 @@ function suite(name, makeStore) {
     } finally { await svc.close(); }
   });
 
+  test(`${name}: an app's user admin can add, change and remove access for its own firm`, async () => {
+    const {svc} = await fresh();
+    try {
+      const svcCall = (path, body, key = KEYS.timesheets) => svc.call(path, {body, headers: {Authorization: 'Bearer ' + key}, bare: true});
+      // New login: needs a temporary password, must change it at first sign-in.
+      assert.equal((await svcCall('/api/service/provision', {email: 'jo@firm.test', tenantId: 'client-1', role: 'worker'})).status, 400);
+      const made = await svcCall('/api/service/provision', {email: 'Jo@firm.test', displayName: 'Jo', tenantId: 'client-1', tenantName: 'Firm One', role: 'worker', temporaryPassword: 'temporary password 1'});
+      assert.equal(made.status, 200); assert.equal(made.body.created, true);
+      let r = await svc.signIn('jo@firm.test', 'temporary password 1', {app: 'timesheets'});
+      assert.equal(r.body.next, null, 'temporary password must be changed first');
+      // Existing login from another app: access is added, the password is left alone.
+      const again = await svcCall('/api/service/provision', {email: 'owner@firm.test', tenantId: 'client-1', role: 'supervisor', temporaryPassword: 'would overwrite!!'});
+      assert.equal(again.body.created, false);
+      assert.equal((await svc.signIn('owner@firm.test', PASSWORD)).status, 200);
+      // Role change, and the quoting key can't see or touch timesheet access.
+      await svcCall('/api/service/provision', {email: 'jo@firm.test', tenantId: 'client-1', role: 'supervisor'});
+      await svcCall('/api/service/provision', {email: 'jo@firm.test', tenantId: 'company-9', role: 'estimator'}, KEYS.quoting);
+      svc.jar.cookie = ''; svc.jar.csrf = '';
+      await svc.signIn('jo@firm.test', 'temporary password 1');
+      const v = await svcCall('/api/service/verify', {token: svc.token()});
+      assert.deepEqual(v.body.session.access.map(a => a.role), ['supervisor']);
+      // Reset: only for someone with access at this firm; ends their sessions.
+      assert.equal((await svcCall('/api/service/reset-password', {email: 'jo@firm.test', tenantId: 'client-2', temporaryPassword: 'another temp pass'})).status, 404);
+      assert.equal((await svcCall('/api/service/reset-password', {email: 'jo@firm.test', tenantId: 'client-1', temporaryPassword: 'another temp pass'})).status, 200);
+      assert.equal((await svcCall('/api/service/verify', {token: svc.token()})).body.session, null);
+      assert.equal((await svc.signIn('jo@firm.test', 'temporary password 1')).status, 401);
+      assert.equal((await svc.signIn('jo@firm.test', 'another temp pass')).status, 200);
+      // Remove: access goes and the person is signed out.
+      await svcCall('/api/service/provision', {email: 'jo@firm.test', tenantId: 'client-1', active: false});
+      const after = await svcCall('/api/service/verify', {token: svc.token()});
+      assert.equal(after.body.session, null);
+      await svc.signIn('jo@firm.test', 'another temp pass');
+      assert.deepEqual((await svcCall('/api/service/verify', {token: svc.token()})).body.session.access, []);
+    } finally { await svc.close(); }
+  });
+
   test(`${name}: the app client authenticates, caches and builds sign-in links`, async () => {
     const {svc} = await fresh();
     try {

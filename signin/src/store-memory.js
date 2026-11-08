@@ -7,6 +7,13 @@ function memoryStore({now = () => Date.now()} = {}) {
   const live = a => (a && a.active ? {...a} : null);
   return {
     accountByEmail: async email => live([...accounts.values()].find(a => a.email === email)),
+    accountByEmailAnyState: async email => { const a = [...accounts.values()].find(x => x.email === email); return a ? {...a} : null; },
+    hasAccess: async (accountId, app, tenantId) => access.some(r => r.account_id === accountId && r.app === app && r.tenant_id === tenantId),
+    revokeAccess: async (accountId, app, tenantId) => {
+      const i = access.findIndex(r => r.account_id === accountId && r.app === app && r.tenant_id === tenantId);
+      if (i >= 0) access.splice(i, 1);
+    },
+    deleteSessions: async accountId => { for (const [k, s] of sessions) if (s.account_id === accountId) sessions.delete(k); },
     accountById: async id => live(accounts.get(id)),
     access: async accountId => access.filter(r => r.account_id === accountId)
       .map(({app, tenant_id, tenant_name, role}) => ({app, tenant_id, tenant_name, role}))
@@ -49,7 +56,9 @@ function memoryStore({now = () => Date.now()} = {}) {
       accounts.set(a.id, a); return {...a};
     },
     grantAccess: async ({accountId, app, tenantId, tenantName = '', role = ''}) => {
-      access.push({account_id: accountId, app, tenant_id: tenantId, tenant_name: tenantName, role});
+      const row = access.find(r => r.account_id === accountId && r.app === app && r.tenant_id === tenantId);
+      if (row) Object.assign(row, {tenant_name: tenantName, role});
+      else access.push({account_id: accountId, app, tenant_id: tenantId, tenant_name: tenantName, role});
     },
     deactivate: async id => { accounts.get(id).active = false; },
   };

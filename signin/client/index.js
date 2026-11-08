@@ -54,6 +54,23 @@ function createSignInClient({signinUrl, appId, serviceKey, cacheSeconds = 30, fe
     await call('/api/service/end-session', token);
   }
 
+  async function post(path, body) {
+    const res = await fetchImpl(base + path, {
+      method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + serviceKey}, body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { const e = new Error(data.error || `Sign-in service answered ${res.status}.`); e.status = res.status < 500 ? res.status : 502; throw e; }
+    return data;
+  }
+
+  /**
+   * Gives (or with active:false removes) access to this app at one firm, creating the login when it is new.
+   * {email, displayName, tenantId, tenantName, role, active, temporaryPassword} -> {accountId, created}
+   */
+  const provision = body => post('/api/service/provision', body);
+  /** Sets a temporary password for someone with access to this app at tenantId, and signs them out. */
+  const resetPassword = ({email, tenantId, temporaryPassword}) => post('/api/service/reset-password', {email, tenantId, temporaryPassword});
+
   const withQuery = (path, returnTo) => {
     const u = new URL(path, base);
     u.searchParams.set('app', appId);
@@ -64,6 +81,8 @@ function createSignInClient({signinUrl, appId, serviceKey, cacheSeconds = 30, fe
   return {
     authenticate,
     endSession,
+    provision,
+    resetPassword,
     /** Where to send someone who isn't signed in; they come back to returnTo afterwards. */
     signInUrl: returnTo => withQuery('/', returnTo),
     /** A link for the app's "Sign out" button. */

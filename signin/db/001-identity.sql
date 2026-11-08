@@ -49,7 +49,8 @@ DO $$ BEGIN
 END $$;
 GRANT USAGE ON SCHEMA identity TO rule29_signin_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA identity TO rule29_signin_app;
-GRANT UPDATE (password_hash, must_change_password) ON identity.accounts TO rule29_signin_app;
+GRANT INSERT, UPDATE (password_hash, must_change_password) ON identity.accounts TO rule29_signin_app;
+GRANT INSERT, UPDATE (tenant_name, role), DELETE ON identity.app_access TO rule29_signin_app;
 GRANT INSERT, DELETE ON identity.sessions TO rule29_signin_app;
 GRANT INSERT, UPDATE, DELETE ON identity.login_limits TO rule29_signin_app;
 REVOKE ALL ON ALL TABLES IN SCHEMA identity FROM PUBLIC;

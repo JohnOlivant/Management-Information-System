@@ -91,6 +91,40 @@ function createApp({store, config, serviceKeys = {}, origin = '', cookieDomain =
         if (t) await store.deleteSession(sha(t));
         return send(res, {ok: true});
       }
+      // An app's own user admin (e.g. the timesheet's Workers screen) gives or removes access to that app
+      // for one firm. It can create an account, but can't change the password of one that already exists.
+      if (route === '/api/service/provision') {
+        const email = String(body.email || '').trim().toLowerCase();
+        need(/^[^\s@]+@[^\s@]+$/.test(email) && email.length <= 254, 400, 'Enter a valid login email.');
+        const tenantId = String(body.tenantId || '');
+        need(tenantId && tenantId.length <= 100, 400, 'Missing firm.');
+        const role = String(body.role || '').slice(0, 40), tenantName = String(body.tenantName || '').slice(0, 200);
+        const displayName = String(body.displayName || '').trim().slice(0, 120);
+        let account = await store.accountByEmail(email), created = false;
+        if (body.active === false) {
+          if (account) { await store.revokeAccess(account.id, app.id, tenantId); await store.deleteSessions(account.id); }
+          return send(res, {accountId: account?.id || null, created});
+        }
+        if (!account) {
+          need(!(await store.accountByEmailAnyState(email)), 409, 'That login is switched off in the sign-in service. Ask the system administrator.');
+          need(typeof body.temporaryPassword === 'string', 400, 'Give a temporary password for the new login.');
+          account = await store.createAccount({email, displayName, passwordHash: await hashPassword(body.temporaryPassword, passwordMin), mustChangePassword: true});
+          created = true;
+        }
+        await store.grantAccess({accountId: account.id, app: app.id, tenantId, tenantName, role});
+        return send(res, {accountId: account.id, created});
+      }
+      // Only for someone who has access to this app at this firm, so one firm can't reset another's staff.
+      if (route === '/api/service/reset-password') {
+        const email = String(body.email || '').trim().toLowerCase();
+        const account = await store.accountByEmail(email);
+        need(account && await store.hasAccess(account.id, app.id, String(body.tenantId || '')), 404, 'No login with access to this firm.');
+        const hash = await hashPassword(body.temporaryPassword, passwordMin);
+        await store.setPassword(account.id, hash, true);
+        await store.deleteSessions(account.id);
+        await store.clearLimit(sha('account:' + email));
+        return send(res, {ok: true});
+      }
       throw new HttpError(404, 'Not found.');
     }
 

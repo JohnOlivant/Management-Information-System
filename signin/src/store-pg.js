@@ -10,6 +10,12 @@ function pgStore(pool) {
   }
   return {
     accountByEmail: email => one('SELECT * FROM identity.accounts WHERE email=$1 AND active', [email]),
+    accountByEmailAnyState: email => one('SELECT * FROM identity.accounts WHERE email=$1', [email]),
+    hasAccess: async (accountId, app, tenantId) => !!(await one(
+      'SELECT 1 FROM identity.app_access WHERE account_id=$1 AND app=$2 AND tenant_id=$3', [accountId, app, tenantId])),
+    revokeAccess: (accountId, app, tenantId) => pool.query(
+      'DELETE FROM identity.app_access WHERE account_id=$1 AND app=$2 AND tenant_id=$3', [accountId, app, tenantId]),
+    deleteSessions: accountId => pool.query('DELETE FROM identity.sessions WHERE account_id=$1', [accountId]),
     accountById: id => one('SELECT * FROM identity.accounts WHERE id=$1 AND active', [id]),
     access: async accountId => (await pool.query(
       'SELECT app, tenant_id, tenant_name, role FROM identity.app_access WHERE account_id=$1 ORDER BY app, tenant_name, tenant_id',
@@ -49,11 +55,10 @@ function pgStore(pool) {
     setPassword: (accountId, hash, mustChange) => pool.query(
       'UPDATE identity.accounts SET password_hash=$2, must_change_password=$3 WHERE id=$1', [accountId, hash, mustChange]),
 
-    // Used by scripts/add-account.js (run as the owner role, not the app role).
+    // Accounts are created by scripts/add-account.js, scripts/import-accounts.js and /api/service/provision.
     createAccount: async ({email, displayName = '', passwordHash, mustChangePassword = true}) => one(
       `INSERT INTO identity.accounts (email, display_name, password_hash, must_change_password) VALUES ($1,$2,$3,$4)
-       ON CONFLICT (email) DO UPDATE SET display_name=EXCLUDED.display_name RETURNING *`,
-      [email, displayName, passwordHash, mustChangePassword]),
+       RETURNING *`, [email, displayName, passwordHash, mustChangePassword]),
     grantAccess: ({accountId, app, tenantId, tenantName = '', role = ''}) => pool.query(
       `INSERT INTO identity.app_access (account_id, app, tenant_id, tenant_name, role) VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (account_id, app, tenant_id) DO UPDATE SET tenant_name=EXCLUDED.tenant_name, role=EXCLUDED.role`,

@@ -82,6 +82,20 @@ if (!session) return redirect(signin.signInUrl(currentAddress));  // API calls a
 
 Server to server, an app posts `{token}` (the `r29_signin` cookie value) to `/api/service/verify` or `/api/service/end-session` with `Authorization: Bearer <its key>`. Verify returns `{session: null}` or the session with only that app's access.
 
+An app's own user screen keeps working through two more calls, both limited to that app:
+
+- `signin.provision({email, displayName, tenantId, tenantName, role, active, temporaryPassword})` gives access at one firm (creating the login, with the temporary password, if it is new) or with `active: false` removes it and signs the person out. An existing login keeps its password.
+- `signin.resetPassword({email, tenantId, temporaryPassword})` works only for someone with access to that app at that firm, and signs them out everywhere.
+
+## Moving an app's existing logins across
+
+```sh
+DATABASE_URL=<sign-in db, owner role> node scripts/import-accounts.js timesheets <timesheet db url>
+DATABASE_URL=<sign-in db, owner role> node scripts/import-accounts.js quoting <quoting db url>
+```
+
+All the apps hash passwords the same way, so people keep their passwords. Someone already in the sign-in from another app keeps that password and gains access. Safe to run twice.
+
 ## Security
 
 Same model as the three apps today: scrypt password hashes (and the same `scrypt:salt:hash` format, so existing hashes can be copied across), hashed 256-bit session tokens, 8-hour sessions, a CSRF token per session, 5 failed attempts per account and 30 per address in 15 minutes, one error message for unknown email and wrong password. Changing a password ends the account's other sessions. The cookie is `HttpOnly`, `Secure` on https, and `SameSite=Lax` so a link from an email into an app keeps the person signed in. Return addresses must belong to the app that asked, so the page can't be used to bounce people to another site. The page sends a strict Content Security Policy and can't be framed.
