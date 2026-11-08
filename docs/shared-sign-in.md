@@ -31,7 +31,7 @@ All three built apps already use the same security model (scrypt, hashed session
 | Where it lives | `signin/` in this repository | The MIS has no code yet and is the product the others feed; a separate repository can be split out later without changes |
 | Build or buy | Build, on the apps' existing model | No new supplier or monthly cost; existing scrypt hashes copy straight across; Auth0, Clerk or Cognito stay possible later because apps only call `verify` |
 | How apps check sessions | HTTP with a per-app key, not a shared database | Quoting has its own database and the suite already uses HTTP and JSON between apps |
-| Cookie | One `r29_signin` cookie on the parent domain, `SameSite=Lax` | Apps must sit on subdomains of one domain (e.g. `quoting.`, `schedule.`, `time.`, `mis.`) |
+| Cookie | One `r29_signin` cookie on the parent domain, `SameSite=Lax` | Apps must sit on subdomains of one domain (`timesheets.`, `quoting.`, `scheduling.` and `management.rule29.co.uk`) |
 | Firm id | Each access row stores the id the app already uses | Doesn't force the `client_id` vs `company_id` choice; the sign-in passes it on unchanged |
 | Password reset | Administrator resets, temporary password changed at first sign-in | Matches live quoting; self-service email reset waits for the email provider decision (SES) |
 | Roles | Stay in each app; the sign-in passes the role string on | Roles differ by app (estimator, payroll, scheduler) |
@@ -49,11 +49,12 @@ Until an app moves, it keeps working on its own sign-in.
 
 **Status, 8 November 2026:** Timesheets ([timesheet-pilot#9](https://github.com/JohnOlivant/timesheet-pilot/pull/9)), Scheduling ([job-scheduler#6](https://github.com/JohnOlivant/job-scheduler/pull/6)) and Quoting ([sands-quoting#42](https://github.com/JohnOlivant/sands-quoting/pull/42)) each have an optional shared sign-in mode, off unless `SIGNIN_URL` and `SIGNIN_KEY` are set. In each, the app's own user screen (or, for the scheduler, the sign-in's `add-account.js`) gives and removes access through `/api/service/provision`. Logins move across with `scripts/import-accounts.js`. The MIS isn't built yet.
 
+**Going live:** john confirmed on 8 November that the apps live under `rule29.co.uk` (`timesheets.`, `quoting.`, `scheduling.`, with `management.` to come for the MIS). The sign-in goes at `signin.rule29.co.uk`. The steps are in [signin/deploy/RUNBOOK.md](../signin/deploy/RUNBOOK.md).
+
 ## Still to decide
 
 | Question | Gates | Default if no answer |
 | --- | --- | --- |
-| The domain the four apps live under (cookie domain) | Deploying the sign-in | One domain with a subdomain per app |
 | One firm id across apps (`client_id` vs `company_id`, gap G5) | MIS release 0 | Keep both; the access table maps each |
 | Two-step sign-in (MFA), required for payroll and advisor users? | Timesheet go-live (its README lists MFA as not built) | Add TOTP to the sign-in service, once, for every app |
 | An admin screen for accounts and access | First firm with more than a handful of users | `scripts/add-account.js` until then |
