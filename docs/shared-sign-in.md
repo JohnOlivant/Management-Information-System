@@ -45,7 +45,9 @@ Each app changes in the same three places: its login form goes, `authenticate` c
 3. **Quoting.** Same copy from `quoting.accounts` and `memberships` (`tenant_id = company_id`). Replace `authenticate()` in `server/src/app.ts` and `SignIn.tsx` with a redirect to `signInUrl(location.href)`. The customer proposal link has no sign-in and is unchanged.
 4. **MIS.** Uses the client from its first commit.
 
-Until an app moves, it keeps working on its own sign-in; nothing here changes the apps.
+Until an app moves, it keeps working on its own sign-in.
+
+**Status, 8 November 2026:** Timesheets ([timesheet-pilot#9](https://github.com/JohnOlivant/timesheet-pilot/pull/9)), Scheduling ([job-scheduler#6](https://github.com/JohnOlivant/job-scheduler/pull/6)) and Quoting ([sands-quoting#42](https://github.com/JohnOlivant/sands-quoting/pull/42)) each have an optional shared sign-in mode, off unless `SIGNIN_URL` and `SIGNIN_KEY` are set. In each, the app's own user screen (or, for the scheduler, the sign-in's `add-account.js`) gives and removes access through `/api/service/provision`. Logins move across with `scripts/import-accounts.js`. The MIS isn't built yet.
 
 ## Still to decide
 
