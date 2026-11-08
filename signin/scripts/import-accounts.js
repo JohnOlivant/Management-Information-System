@@ -2,6 +2,8 @@
 // Copies an app's existing logins into the shared sign-in, keeping each person's password.
 //   DATABASE_URL=<sign-in db, owner role> node scripts/import-accounts.js timesheets <timesheet db url>
 //   DATABASE_URL=<sign-in db, owner role> node scripts/import-accounts.js quoting <quoting db url>
+//   DATABASE_URL=<sign-in db, owner role> node scripts/import-accounts.js scheduling <scheduler db url>            (standalone mode)
+//   DATABASE_URL=<sign-in db, owner role> node scripts/import-accounts.js scheduling-connected <timesheet db url>  (connected mode)
 // All the apps store passwords as scrypt:salt:hash with the same settings, so the hash is copied as is.
 // Someone already in the sign-in (from another app) keeps that password; only their access is added.
 // Safe to run more than once.
@@ -22,11 +24,24 @@ const SOURCES = {
     JOIN quoting.memberships m ON m.account_id = a.id AND m.active
     JOIN quoting.companies c ON c.id = m.company_id
     ORDER BY a.email`,
+  // The scheduler's memberships; logins are its own (standalone) or the timesheet's (connected).
+  scheduling: schedulerSql('standalone'),
+  'scheduling-connected': schedulerSql('timesheet'),
 };
+const APP_OF = {'scheduling-connected': 'scheduling'};
 
-async function importAccounts(target, source, app) {
-  const sql = SOURCES[app];
-  if (!sql) throw new Error(`No import for "${app}". Choose ${Object.keys(SOURCES).join(' or ')}.`);
+function schedulerSql(accounts) {
+  return `SELECT a.email, a.password_hash, a.must_change_password, a.active, '' AS display_name,
+      m.client_id::text AS tenant_id, c.name AS tenant_name, m.role
+    FROM scheduling.memberships m
+    JOIN ${accounts}.accounts a ON a.id = m.account_id
+    JOIN integration.clients_v1 c ON c.id = m.client_id
+    WHERE m.active ORDER BY a.email`;
+}
+
+async function importAccounts(target, source, from) {
+  const sql = SOURCES[from], app = APP_OF[from] || from;
+  if (!sql) throw new Error(`No import for "${from}". Choose ${Object.keys(SOURCES).join(', ')}.`);
   const rows = (await source.query(sql)).rows;
   const tally = {created: 0, existing: 0, grants: 0, skippedInactive: 0};
   const db = await target.connect();
@@ -54,7 +69,7 @@ async function importAccounts(target, source, app) {
 if (require.main === module) {
   const [app, sourceUrl] = process.argv.slice(2);
   (async () => {
-    if (!app || !sourceUrl || !process.env.DATABASE_URL) throw new Error('Usage: DATABASE_URL=<sign-in db> import-accounts.js timesheets|quoting <source db url>');
+    if (!app || !sourceUrl || !process.env.DATABASE_URL) throw new Error('Usage: DATABASE_URL=<sign-in db> import-accounts.js timesheets|quoting|scheduling|scheduling-connected <source db url>');
     const target = new Pool({connectionString: process.env.DATABASE_URL}), source = new Pool({connectionString: sourceUrl});
     try {
       const t = await importAccounts(target, source, app);
