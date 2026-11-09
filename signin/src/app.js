@@ -5,14 +5,16 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const {HttpError, need, sha, token, hashPassword, verifyPassword, sameSecret, readCookie, PASSWORD_MIN} = require('./security');
-const {safeReturn, publicApp} = require('./apps');
+const {safeReturn, publicApp, normaliseRole} = require('./apps');
 
 const COOKIE = 'r29_signin';
 const SESSION_HOURS = 8, WINDOW_MINUTES = 15, ACCOUNT_LIMIT = 5, IP_LIMIT = 30;
 const MAX_BODY = 16 * 1024;
 const PUBLIC = path.join(__dirname, '..', 'public');
 const PAGES = new Set(['/', '/signout', '/password']);
-const ASSETS = {'/signin.css': 'text/css; charset=utf-8', '/signin.js': 'text/javascript; charset=utf-8'};
+const ASSETS = {'/signin.css': 'text/css; charset=utf-8', '/signin.js': 'text/javascript; charset=utf-8',
+  '/setup.css': 'text/css; charset=utf-8', '/setup.js': 'text/javascript; charset=utf-8'};
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /**
  * @param {object} o
@@ -68,6 +70,7 @@ function createApp({store, config, serviceKeys = {}, origin = '', cookieDomain =
     securityHeaders(res);
 
     if (method === 'GET' && PAGES.has(route)) return file(res, 'signin.html', 'text/html; charset=utf-8');
+    if (method === 'GET' && route === '/setup') return file(res, 'setup.html', 'text/html; charset=utf-8');
     if (method === 'GET' && ASSETS[route]) return file(res, route.slice(1), ASSETS[route]);
     if (route === '/api/health' && method === 'GET') return send(res, {ok: true});
 
@@ -98,7 +101,7 @@ function createApp({store, config, serviceKeys = {}, origin = '', cookieDomain =
         need(/^[^\s@]+@[^\s@]+$/.test(email) && email.length <= 254, 400, 'Enter a valid login email.');
         const tenantId = String(body.tenantId || '');
         need(tenantId && tenantId.length <= 100, 400, 'Missing firm.');
-        const role = String(body.role || '').slice(0, 40), tenantName = String(body.tenantName || '').slice(0, 200);
+        const role = String(body.role || '').slice(0, 400), tenantName = String(body.tenantName || '').slice(0, 200);
         const displayName = String(body.displayName || '').trim().slice(0, 120);
         let account = await store.accountByEmail(email), created = false;
         if (body.active === false) {
@@ -136,8 +139,16 @@ function createApp({store, config, serviceKeys = {}, origin = '', cookieDomain =
         suiteName: config.suiteName, suiteMark: config.suiteMark, passwordMin, app: publicApp(app), allApps: config.apps.map(publicApp),
         returnTo: safeReturn(app, url.searchParams.get('return')),
         signedIn: s && {email: s.email, displayName: s.display_name, mustChangePassword: s.must_change_password,
-          csrf: s.csrf_token, apps: openable, canOpenApp: !!app && openable.some(a => a.id === app.id)},
+          csrf: s.csrf_token, apps: openable, canOpenApp: !!app && openable.some(a => a.id === app.id), setupAdmin: !!s.setup_admin},
       });
+    }
+
+    // The setup page: everyone's logins, and which apps, firms and roles each person has.
+    if (route === '/api/setup' && method === 'GET') {
+      const s = await currentSession(req);
+      need(s, 401, 'Please sign in.');
+      need(s.setup_admin && !s.must_change_password, 403, 'Only a setup administrator can open this page.');
+      return send(res, await setupState(s));
     }
 
     need(method === 'POST', 404, 'Not found.');
@@ -175,6 +186,75 @@ function createApp({store, config, serviceKeys = {}, origin = '', cookieDomain =
       const app = apps.get(String(body.app || '')) || null;
       const allowed = app && (await store.access(s.account_id)).some(r => r.app === app.id);
       return send(res, {next: allowed ? (safeReturn(app, body.return) || app.homeUrl) : null});
+    }
+    if (route.startsWith('/api/setup/')) {
+      need(s.setup_admin && !s.must_change_password, 403, 'Only a setup administrator can do this.');
+      await setupChange(route, body, s);
+      return send(res, await setupState(s));
+    }
+    throw new HttpError(404, 'Not found.');
+  }
+
+  async function setupState(s) {
+    const [people, firms] = await Promise.all([store.people(), store.firms()]);
+    return {
+      me: s.account_id, passwordMin,
+      apps: config.apps.map(a => ({...publicApp(a), roles: a.roles, multipleRoles: a.multipleRoles,
+        firms: firms.filter(f => f.app === a.id).map(f => ({tenantId: f.tenant_id, tenantName: f.tenant_name}))})),
+      people: people.map(p => ({id: p.id, email: p.email, displayName: p.display_name, active: p.active, setupAdmin: p.setup_admin,
+        mustChangePassword: p.must_change_password,
+        access: p.access.map(x => ({app: x.app, tenantId: x.tenant_id, tenantName: x.tenant_name, role: x.role}))})),
+    };
+  }
+
+  /** One change from the setup page. Anything that takes access away also signs the person out everywhere. */
+  async function setupChange(route, body, s) {
+    if (route === '/api/setup/person') {
+      const displayName = String(body.displayName ?? '').trim();
+      need(displayName.length <= 120, 400, 'Use a name of up to 120 characters.');
+      const active = body.active !== false, setupAdmin = body.setupAdmin === true;
+      if (!body.id) {
+        const email = String(body.email || '').trim().toLowerCase();
+        need(EMAIL.test(email) && email.length <= 254, 400, 'Enter a valid email.');
+        need(!(await store.accountByEmailAnyState(email)), 409, 'Someone already has that email. Find them in the list instead.');
+        need(typeof body.temporaryPassword === 'string', 400, 'Give a temporary password for the new login.');
+        const account = await store.createAccount({email, displayName, passwordHash: await hashPassword(body.temporaryPassword, passwordMin), mustChangePassword: true});
+        if (setupAdmin) await store.updateAccount({id: account.id, displayName, active: true, setupAdmin});
+        return;
+      }
+      const account = await store.accountByIdAnyState(String(body.id));
+      need(account, 404, 'That person is no longer here. Reload the page.');
+      if (account.id === s.account_id) need(active && setupAdmin, 400, "You can't switch off your own login or setup access.");
+      await store.updateAccount({id: account.id, displayName, active, setupAdmin});
+      if (!active && account.active) await store.deleteSessions(account.id);
+      return;
+    }
+    if (route === '/api/setup/access') {
+      const account = await store.accountByIdAnyState(String(body.accountId || ''));
+      need(account, 404, 'That person is no longer here. Reload the page.');
+      const app = apps.get(String(body.app || ''));
+      need(app, 400, 'Choose an app.');
+      const tenantId = String(body.tenantId || '').trim();
+      need(tenantId && tenantId.length <= 100, 400, 'Choose a firm.');
+      if (body.remove === true) {
+        await store.revokeAccess(account.id, app.id, tenantId);
+        await store.deleteSessions(account.id);
+        return;
+      }
+      const role = normaliseRole(app, body.role);
+      need(typeof role === 'string', 400, role.error);
+      const tenantName = String(body.tenantName ?? '').trim().slice(0, 200);
+      await store.grantAccess({accountId: account.id, app: app.id, tenantId, tenantName, role});
+      return;
+    }
+    if (route === '/api/setup/reset-password') {
+      const account = await store.accountByIdAnyState(String(body.accountId || ''));
+      need(account, 404, 'That person is no longer here. Reload the page.');
+      need(account.id !== s.account_id, 400, 'Change your own password with Change password.');
+      await store.setPassword(account.id, await hashPassword(body.temporaryPassword, passwordMin), true);
+      await store.deleteSessions(account.id);
+      await store.clearLimit(sha('account:' + account.email));
+      return;
     }
     throw new HttpError(404, 'Not found.');
   }

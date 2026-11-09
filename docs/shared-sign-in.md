@@ -34,7 +34,7 @@ All three built apps already use the same security model (scrypt, hashed session
 | Cookie | One `r29_signin` cookie on the parent domain, `SameSite=Lax` | Apps must sit on subdomains of one domain (`timesheets.`, `quoting.`, `scheduling.` and `management.rule29.co.uk`) |
 | Firm id | Each access row stores the id the app already uses | Doesn't force the `client_id` vs `company_id` choice; the sign-in passes it on unchanged |
 | Password reset | Administrator resets, temporary password changed at first sign-in | Matches live quoting; self-service email reset waits for the email provider decision (SES) |
-| Roles | Stay in each app; the sign-in passes the role string on | Roles differ by app (estimator, payroll, scheduler) |
+| Roles | Set in the sign-in (setup page at `/setup`); each app follows the role it is given | john, 9 November 2026: one place to set who can do what. Scheduling already worked this way; Timesheets and Quoting copy the role into their own records when the person opens them |
 
 ## Moving each app across
 
@@ -57,4 +57,4 @@ Until an app moves, it keeps working on its own sign-in.
 | --- | --- | --- |
 | One firm id across apps (`client_id` vs `company_id`, gap G5) | MIS release 0 | Keep both; the access table maps each |
 | Two-step sign-in (MFA), required for payroll and advisor users? | Timesheet go-live (its README lists MFA as not built) | Add TOTP to the sign-in service, once, for every app |
-| An admin screen for accounts and access | First firm with more than a handful of users | `scripts/add-account.js` until then |
+| Setup page per firm | A second firm on the suite | Built 9 November 2026 for Rule29's own administrators: a setup administrator sees every firm. Firm-level administrators keep using each app's own user screen |

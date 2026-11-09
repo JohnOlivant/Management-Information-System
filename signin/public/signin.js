@@ -64,6 +64,7 @@
     $('launcher-notice').textContent = notice || '';
     $('launcher-notice').hidden = !notice;
     $('launcher-empty').hidden = s.apps.length > 0;
+    $('launcher-setup').hidden = !s.setupAdmin;
     $('launcher-apps').replaceChildren(...s.apps.map(a => {
       const li = document.createElement('li'), link = document.createElement('a'), mark = document.createElement('span'), text = document.createElement('span');
       const title = document.createElement('strong'), sub = document.createElement('small');

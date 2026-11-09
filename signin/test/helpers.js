@@ -37,7 +37,7 @@ async function start(store, options = {}) {
 
 async function seed(store) {
   const hash = await hashPassword(PASSWORD);
-  const owner = await store.createAccount({email: 'owner@firm.test', displayName: 'Owner', passwordHash: hash, mustChangePassword: false});
+  const owner = await store.createAccount({email: 'owner@firm.test', displayName: 'Owner', passwordHash: hash, mustChangePassword: false, setupAdmin: true});
   await store.grantAccess({accountId: owner.id, app: 'quoting', tenantId: 'company-1', tenantName: 'Firm One', role: 'approver'});
   await store.grantAccess({accountId: owner.id, app: 'timesheets', tenantId: 'client-1', tenantName: 'Firm One', role: 'payroll'});
   const crew = await store.createAccount({email: 'crew@firm.test', displayName: 'Crew', passwordHash: hash, mustChangePassword: false});

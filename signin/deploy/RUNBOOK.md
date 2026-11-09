@@ -95,6 +95,16 @@ Logs:
 journalctl -u signin -n 50
 ```
 
+## 6. The setup page (People and apps)
+
+Each release of the sign-in brings its new database files with it; `ship.sh` applies them. Once a release with the setup page is installed, make yourself its first administrator. On the server:
+
+```bash
+sudo -u postgres psql -P pager=off -d rule29_signin -c "UPDATE identity.accounts SET setup_admin = true WHERE email = 'you@firm.co.uk'"
+```
+
+It should print `UPDATE 1`. Then open https://signin.rule29.co.uk/setup (or **People and apps** on the sign-in's app list). Anyone else who should use it can be ticked **Can use this setup page** there.
+
 ## Keys and backups
 
 - Each app's key lives in two places: the `SIGNIN_KEY_<APP>` line in `/etc/signin/app.env` and that app's own `SIGNIN_KEY`. To change a key:

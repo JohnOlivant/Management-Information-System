@@ -40,7 +40,7 @@ function memoryStore({now = () => Date.now()} = {}) {
     session: async tokenHash => {
       const s = sessions.get(tokenHash), a = s && live(accounts.get(s.account_id));
       if (!s || !a || s.expires_at.getTime() <= now()) return null;
-      return {...s, email: a.email, display_name: a.display_name, must_change_password: a.must_change_password};
+      return {...s, email: a.email, display_name: a.display_name, must_change_password: a.must_change_password, setup_admin: !!a.setup_admin};
     },
     deleteSession: async tokenHash => { sessions.delete(tokenHash); },
     deleteOtherSessions: async (accountId, keepHash) => {
@@ -51,8 +51,8 @@ function memoryStore({now = () => Date.now()} = {}) {
       const a = accounts.get(accountId); a.password_hash = hash; a.must_change_password = mustChange;
     },
 
-    createAccount: async ({email, displayName = '', passwordHash, mustChangePassword = true, active = true}) => {
-      const a = {id: randomUUID(), email, display_name: displayName, password_hash: passwordHash, must_change_password: mustChangePassword, active};
+    createAccount: async ({email, displayName = '', passwordHash, mustChangePassword = true, active = true, setupAdmin = false}) => {
+      const a = {id: randomUUID(), email, display_name: displayName, password_hash: passwordHash, must_change_password: mustChangePassword, active, setup_admin: setupAdmin};
       accounts.set(a.id, a); return {...a};
     },
     grantAccess: async ({accountId, app, tenantId, tenantName = '', role = ''}) => {
@@ -61,6 +61,23 @@ function memoryStore({now = () => Date.now()} = {}) {
       else access.push({account_id: accountId, app, tenant_id: tenantId, tenant_name: tenantName, role});
     },
     deactivate: async id => { accounts.get(id).active = false; },
+
+    // The setup page.
+    accountByIdAnyState: async id => { const a = accounts.get(id); return a ? {...a} : null; },
+    updateAccount: async ({id, displayName, active, setupAdmin}) => {
+      Object.assign(accounts.get(id), {display_name: displayName, active, setup_admin: setupAdmin});
+    },
+    people: async () => [...accounts.values()].sort((a, b) => a.email.localeCompare(b.email)).map(a => ({
+      id: a.id, email: a.email, display_name: a.display_name, active: a.active, setup_admin: !!a.setup_admin,
+      must_change_password: a.must_change_password,
+      access: access.filter(r => r.account_id === a.id).map(({app, tenant_id, tenant_name, role}) => ({app, tenant_id, tenant_name, role}))
+        .sort((x, y) => x.app.localeCompare(y.app) || x.tenant_name.localeCompare(y.tenant_name)),
+    })),
+    firms: async () => {
+      const seen = new Map();
+      for (const r of access) if (!seen.has(r.app + '\0' + r.tenant_id) || r.tenant_name) seen.set(r.app + '\0' + r.tenant_id, {app: r.app, tenant_id: r.tenant_id, tenant_name: r.tenant_name});
+      return [...seen.values()].sort((a, b) => a.app.localeCompare(b.app) || a.tenant_name.localeCompare(b.tenant_name));
+    },
   };
 }
 

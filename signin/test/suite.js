@@ -201,6 +201,106 @@ function suite(name, makeStore) {
     } finally { await svc.close(); }
   });
 
+  test(`${name}: only a setup administrator can open the setup page`, async () => {
+    const {svc} = await fresh();
+    try {
+      assert.equal((await svc.call('/setup')).status, 200);
+      assert.equal((await svc.call('/api/setup')).status, 401);
+      await svc.signIn('crew@firm.test');
+      assert.equal((await svc.call('/api/state')).body.signedIn.setupAdmin, false);
+      assert.equal((await svc.call('/api/setup')).status, 403);
+      assert.equal((await svc.call('/api/setup/person', {body: {email: 'x@firm.test', temporaryPassword: 'temporary password 1'}})).status, 403);
+      svc.jar.cookie = ''; svc.jar.csrf = '';
+      await svc.signIn('new@firm.test');
+      assert.equal((await svc.call('/api/setup')).status, 403, 'not before a temporary password is changed');
+      svc.jar.cookie = ''; svc.jar.csrf = '';
+      await svc.signIn('owner@firm.test');
+      assert.equal((await svc.call('/api/state')).body.signedIn.setupAdmin, true);
+      const r = await svc.call('/api/setup');
+      assert.equal(r.status, 200);
+      assert.deepEqual(r.body.people.map(p => p.email), ['crew@firm.test', 'new@firm.test', 'owner@firm.test']);
+      const ts = r.body.apps.find(a => a.id === 'timesheets');
+      assert.deepEqual(ts.roles.map(x => x.id), ['worker', 'supervisor', 'payroll', 'admin']);
+      assert.deepEqual(ts.firms, [{tenantId: 'client-1', tenantName: 'Firm One'}]);
+      assert.equal(r.body.apps.find(a => a.id === 'quoting').multipleRoles, true);
+      assert.equal(r.body.people.find(p => p.email === 'owner@firm.test').access.length, 2);
+      // Writes need the CSRF token, like every other change.
+      const csrf = svc.jar.csrf; svc.jar.csrf = '';
+      assert.equal((await svc.call('/api/setup/person', {body: {email: 'x@firm.test', temporaryPassword: 'temporary password 1'}})).status, 403);
+      svc.jar.csrf = csrf;
+    } finally { await svc.close(); }
+  });
+
+  test(`${name}: the setup page adds people and sets their apps, firms and roles`, async () => {
+    const {svc} = await fresh();
+    try {
+      await svc.signIn('owner@firm.test');
+      const post = (path, body) => svc.call('/api/setup/' + path, {body});
+      assert.equal((await post('person', {email: 'bad', temporaryPassword: 'temporary password 1'})).status, 400);
+      assert.equal((await post('person', {email: 'Crew@firm.test', temporaryPassword: 'temporary password 1'})).status, 409);
+      assert.equal((await post('person', {email: 'pat@firm.test', temporaryPassword: 'short'})).status, 400);
+      const made = await post('person', {email: 'Pat@Firm.test', displayName: 'Pat Admin', temporaryPassword: 'temporary password 1'});
+      assert.equal(made.status, 200);
+      const pat = made.body.people.find(p => p.email === 'pat@firm.test');
+      assert.deepEqual([pat.displayName, pat.active, pat.setupAdmin, pat.mustChangePassword, pat.access], ['Pat Admin', true, false, true, []]);
+
+      // Roles are checked against each app's list; Quoting takes several, kept in its own order.
+      assert.equal((await post('access', {accountId: pat.id, app: 'timesheets', tenantId: 'client-1', role: 'boss'})).status, 400);
+      assert.equal((await post('access', {accountId: pat.id, app: 'timesheets', tenantId: 'client-1', role: ['admin', 'payroll']})).status, 400);
+      assert.equal((await post('access', {accountId: pat.id, app: 'timesheets', tenantId: 'client-1', role: ''})).status, 400);
+      assert.equal((await post('access', {accountId: pat.id, app: 'nope', tenantId: 'client-1', role: 'admin'})).status, 400);
+      assert.equal((await post('access', {accountId: pat.id, app: 'timesheets', tenantId: 'client-1', tenantName: 'Firm One', role: 'admin'})).status, 200);
+      const allQuoting = ['admin', 'operations', 'accounts', 'rate_admin', 'approver', 'estimator'];
+      const q = await post('access', {accountId: pat.id, app: 'quoting', tenantId: 'company-1', tenantName: 'Firm One', role: allQuoting});
+      assert.equal(q.status, 200);
+      const role = q.body.people.find(p => p.id === pat.id).access.find(x => x.app === 'quoting').role;
+      assert.equal(role, 'estimator,approver,rate_admin,accounts,operations,admin');
+      assert.ok(role.length > 40, 'a full Quoting role list is longer than the old 40-character limit');
+
+      // The apps see what the setup page set.
+      svc.jar.cookie = ''; svc.jar.csrf = '';
+      await svc.signIn('pat@firm.test', 'temporary password 1');
+      const patToken = svc.token();
+      const verify = key => svc.call('/api/service/verify', {body: {token: patToken}, headers: {Authorization: 'Bearer ' + key}, bare: true});
+      assert.deepEqual((await verify(KEYS.timesheets)).body.session.access, [{tenantId: 'client-1', tenantName: 'Firm One', role: 'admin'}]);
+      assert.equal((await verify(KEYS.quoting)).body.session.access[0].role, role);
+
+      // Changing a role keeps them signed in; removing access signs them out everywhere.
+      svc.jar.cookie = ''; svc.jar.csrf = '';
+      await svc.signIn('owner@firm.test');
+      await post('access', {accountId: pat.id, app: 'timesheets', tenantId: 'client-1', tenantName: 'Firm One', role: 'payroll'});
+      assert.equal((await verify(KEYS.timesheets)).body.session.access[0].role, 'payroll');
+      const removed = await post('access', {accountId: pat.id, app: 'quoting', tenantId: 'company-1', remove: true});
+      assert.deepEqual(removed.body.people.find(p => p.id === pat.id).access.map(x => x.app), ['timesheets']);
+      assert.equal((await verify(KEYS.timesheets)).body.session, null);
+
+      // A new firm can be typed in, and then appears in that app's firm list.
+      const added = await post('access', {accountId: pat.id, app: 'mis', tenantId: 'firm-9', tenantName: 'Firm Nine', role: 'viewer'});
+      assert.deepEqual(added.body.apps.find(a => a.id === 'mis').firms, [{tenantId: 'firm-9', tenantName: 'Firm Nine'}]);
+
+      // Make them a setup administrator, then switch their login off: they're signed out and can't sign in.
+      const promoted = await post('person', {id: pat.id, displayName: 'Pat A.', active: true, setupAdmin: true});
+      assert.deepEqual(['displayName', 'setupAdmin'].map(k => promoted.body.people.find(p => p.id === pat.id)[k]), ['Pat A.', true]);
+      const off = await post('person', {id: pat.id, displayName: 'Pat A.', active: false, setupAdmin: false});
+      assert.equal(off.body.people.find(p => p.id === pat.id).active, false);
+      assert.equal((await svc.call('/api/login', {body: {email: 'pat@firm.test', password: 'temporary password 1'}, bare: true})).status, 401);
+      await post('person', {id: pat.id, displayName: 'Pat A.', active: true, setupAdmin: false});
+
+      // Reset password: a new temporary password, which must be changed.
+      assert.equal((await post('reset-password', {accountId: pat.id, temporaryPassword: 'short'})).status, 400);
+      assert.equal((await post('reset-password', {accountId: pat.id, temporaryPassword: 'new temporary pass'})).status, 200);
+      const back = await svc.call('/api/login', {body: {email: 'pat@firm.test', password: 'new temporary pass'}, bare: true});
+      assert.equal(back.status, 200);
+
+      // Nobody can lock themselves out.
+      const me = (await svc.call('/api/setup')).body.me;
+      assert.equal((await post('person', {id: me, displayName: 'Owner', active: false, setupAdmin: true})).status, 400);
+      assert.equal((await post('person', {id: me, displayName: 'Owner', active: true, setupAdmin: false})).status, 400);
+      assert.equal((await post('reset-password', {accountId: me, temporaryPassword: 'new temporary pass'})).status, 400);
+      assert.equal((await post('person', {id: me, displayName: 'The Owner', active: true, setupAdmin: true})).status, 200);
+    } finally { await svc.close(); }
+  });
+
   test(`${name}: the app client authenticates, caches and builds sign-in links`, async () => {
     const {svc} = await fresh();
     try {
