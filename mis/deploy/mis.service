@@ -1,0 +1,29 @@
+[Unit]
+Description=Rule29 Management Information
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=mis
+Group=mis
+WorkingDirectory=/srv/mis/current/mis
+EnvironmentFile=/etc/mis/app.env
+ExecStart=/usr/local/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
