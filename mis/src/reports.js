@@ -14,7 +14,7 @@
 const WON = ['accepted', 'authorised'];
 const WARN_SHARE = 0.8;   // A2: flag a job once its hours pass 80% of plan
 const EXPIRY_DAYS = 14;   // quotes running out within this many days are listed
-const DAY_HOURS = 8;      // a normal working day, Monday to Friday, for crew capacity
+const DAY_HOURS = 8;      // a normal working day, Monday to Friday, for crew capacity, unless the firm sets its own
 const CAPACITY_WEEKS = 8, HISTORY_WEEKS = 12, WIN_MONTHS = 12;
 
 const pence = v => (v === null || v === undefined || v === '' || !Number.isFinite(Number(v))) ? 0 : Math.round(Number(v) * 100);
@@ -265,10 +265,11 @@ const minCrew = p => Math.max(1, Number(p.minCrew) || 1, p.loneWorking ? 1 : 2);
 
 /**
  * Crew capacity for this week and the next seven, from today. Available: each active worker's working
- * days (Monday to Friday, 8 hours) less holiday, sickness, training and other time away. Booked: their
+ * days (Monday to Friday, the firm's working day: 8 hours unless it sets 10, 12 or another figure) less holiday, sickness, training and other time away. Booked: their
  * assignments on jobs in Scheduling. Still to crew: jobs short of their minimum crew, at the job's hours.
  */
-function capacity({workers = [], assignments = [], away = [], plans = []} = {}, today, weeks = CAPACITY_WEEKS) {
+function capacity({workers = [], assignments = [], away = [], plans = []} = {}, today, {weeks = CAPACITY_WEEKS, dayHours = DAY_HOURS} = {}) {
+  const DAY = Number(dayHours) > 0 && Number(dayHours) <= 24 ? Number(dayHours) : DAY_HOURS;
   const first = weekStart(today), end = addDays(first, 7 * weeks);
   const span = Array.from({length: weeks}, (_, i) => addDays(first, 7 * i));
   const inWindow = d => d >= today && d < end;
@@ -282,7 +283,7 @@ function capacity({workers = [], assignments = [], away = [], plans = []} = {}, 
     for (let d = a.from > today ? a.from : today; d <= a.to && d < end; d = addDays(d, 1)) {
       if (isWeekend(d)) continue;
       const k = a.workerId + d;
-      off.set(k, Math.min(DAY_HOURS, (off.get(k) || 0) + (a.hours ? Number(a.hours) : DAY_HOURS)));
+      off.set(k, Math.min(DAY, (off.get(k) || 0) + (a.hours ? Number(a.hours) : DAY)));
     }
   }
   const bookedOn = new Map();
@@ -295,8 +296,8 @@ function capacity({workers = [], assignments = [], away = [], plans = []} = {}, 
     for (let d = today; d < end; d = addDays(d, 1)) {
       const w = weekStart(d), mine = p.weeks.get(w), all = totals.get(w);
       const gone = off.get(p.id + d) || 0, booked = bookedOn.get(p.id + d) || 0;
-      const avail = isWeekend(d) ? 0 : DAY_HOURS - gone;
-      if (booked && gone >= DAY_HOURS) p.clashes += 1;
+      const avail = isWeekend(d) ? 0 : DAY - gone;
+      if (booked && gone >= DAY) p.clashes += 1;
       for (const t of [mine, all]) { t.available += avail; t.booked += booked; t.away += isWeekend(d) ? 0 : gone; }
     }
   }
@@ -316,7 +317,7 @@ function capacity({workers = [], assignments = [], away = [], plans = []} = {}, 
   const rows = span.map(w => ({week: w, ...shape(totals.get(w))}));
   const sum = k => round2(rows.reduce((s, r) => s + r[k], 0));
   return {
-    from: today, dayHours: DAY_HOURS, crew: people.size,
+    from: today, dayHours: DAY, crew: people.size,
     available: sum('available'), booked: sum('booked'), unfilled: sum('unfilled'), free: round2(sum('available') - sum('booked')),
     share: sum('available') ? Math.round(100 * sum('booked') / sum('available')) : null,
     weeks: rows,
@@ -370,14 +371,14 @@ function hoursWent(rows, today, weeks = HISTORY_WEEKS) {
 }
 
 /** Every report for one firm. Missing sources give empty lists, and `have` says which were read. */
-function allReports({quotes = [], jobs = [], booked = [], crew = {}, worked = [], have}, today) {
+function allReports({quotes = [], jobs = [], booked = [], crew = {}, worked = [], have}, today, settings = {}) {
   return {
     today,
     pipeline: pipeline(quotes, today),
     orderBook: orderBook(quotes, today),
     hours: hours(jobs, booked, today),
     winRate: winRate(quotes, today),
-    capacity: capacity(crew, today),
+    capacity: capacity(crew, today, {dayHours: settings.dayHours}),
     hoursWent: hoursWent(worked, today),
     fixes: fixes(quotes, jobs, booked, have),
     have,

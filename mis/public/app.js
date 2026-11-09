@@ -122,7 +122,7 @@
     const cell = x => x.available === 0 && x.booked === 0 ? '<span class="muted">–</span>'
       : `<span class="${x.booked > x.available ? 'pill over' : x.share !== null && x.share < 50 ? 'pill ok' : ''}">${h(x.booked)}/${h(x.available)}</span>`;
     return `<h2>Crew capacity</h2>
-      <p class="lead">Crew hours free against hours booked in Scheduling, this week (from today) and the next seven. Each active worker has ${c.dayHours} hours a day, Monday to Friday, less holiday, sickness, training and other time booked away. Booked hours follow each job's daily times. Still to crew is the hours on jobs short of their minimum crew.</p>
+      <p class="lead">Crew hours free against hours booked in Scheduling, this week (from today) and the next seven. Each active worker has a ${num(c.dayHours)}-hour day, Monday to Friday (set for each firm), less holiday, sickness, training and other time booked away. Booked hours follow each job's daily times. Still to crew is the hours on jobs short of their minimum crew.</p>
       <div class="tiles">
         ${tile('Crew', c.crew, 'active workers in Scheduling')}
         ${tile('Booked', pct(c.share), `${h(c.booked)} of ${h(c.available)} hours`)}

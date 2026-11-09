@@ -55,6 +55,12 @@ sudo bash add-firm.sh grant john@johnolivant.co.uk ss
 
 `ss` is a short name you choose for the firm. If you'd rather not work out the ids yourself, paste the `list` output to Claude and you'll get back the exact commands.
 
+Crew capacity counts an 8-hour working day unless you set another for the firm, for example 10:
+
+```bash
+sudo bash add-firm.sh day-hours ss 10
+```
+
 Once one person has access, the firm also appears under **Management Information** on the sign-in's setup page (https://signin.rule29.co.uk/setup), so anyone else can be given access there.
 
 ## 4. Check it works

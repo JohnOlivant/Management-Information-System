@@ -154,6 +154,15 @@ test('capacity takes time away off each worker and counts crews still to find', 
   assert.equal(al.weeks[0].booked, 32);
 });
 
+test('capacity uses the firm\'s own working day when it sets one', () => {
+  const crew = {workers: [{id: 'a', name: 'Al'}], assignments: [], away: [{workerId: 'a', kind: 'holiday', from: '2026-11-16', to: '2026-11-16', hours: null}], plans: []};
+  assert.equal(capacity(crew, TODAY).weeks[1].available, 4 * 8);
+  const ten = capacity(crew, TODAY, {dayHours: 10});
+  assert.equal(ten.dayHours, 10);
+  assert.equal(ten.weeks[1].available, 4 * 10, 'a day away takes off the whole 10 hours');
+  assert.equal(capacity(crew, TODAY, {dayHours: 'nonsense'}).dayHours, 8);
+});
+
 test('where the hours went splits customer, internal and leave by week, job and worker', () => {
   const r = hoursWent([
     {week: '2026-11-09', jobNumber: 'Q1', jobName: 'One', kind: 'customer', workerId: 'a', worker: 'Al', hours: 30},
