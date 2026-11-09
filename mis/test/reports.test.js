@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {pipeline, orderBook, hours, fixes, monthsFrom} = require('../src/reports');
+const {pipeline, orderBook, hours, fixes, winRate, capacity, hoursWent, bookingDays, monthsFrom, monthsBack} = require('../src/reports');
 const {demoData} = require('../src/demo');
 
 const TODAY = '2026-11-09';
@@ -94,8 +94,96 @@ test('fixes does not blame an app the firm is not linked to', () => {
   assert.deepEqual(list, []);
 });
 
+test('win rate counts won, declined and run-out quotes, leaving open ones out of the rate', () => {
+  const w = winRate([
+    quote({reference: 'A', status: 'authorised', value: '900', acceptedValue: '1000', firstIssuedOn: '2026-03-01', issuedOn: '2026-03-10', respondedOn: '2026-03-21', leadSource: 'Web'}),
+    quote({reference: 'B', status: 'accepted', value: '500', cancelled: true, firstIssuedOn: '2026-03-05', respondedOn: '2026-03-15'}),
+    quote({reference: 'C', status: 'declined', value: '2000', firstIssuedOn: '2026-04-01', respondedOn: '2026-04-11', leadSource: 'Web'}),
+    quote({reference: 'D', status: 'expired', value: '300', firstIssuedOn: '2026-05-01', expiredOn: '2026-06-01'}),
+    quote({reference: 'E', status: 'issued', value: '400', firstIssuedOn: '2026-10-01', validUntil: '2026-11-01'}),   // ran out, not yet marked
+    quote({reference: 'F', status: 'issued', value: '700', firstIssuedOn: '2026-11-02', validUntil: '2026-12-01'}),   // still open
+    quote({reference: 'Old', status: 'declined', firstIssuedOn: '2025-10-31'}),                                       // before the 12 months
+    quote({reference: 'G', status: 'withdrawn', firstIssuedOn: '2026-06-01'}),
+  ], TODAY);
+  assert.equal(w.since, '2025-12-01');
+  assert.deepEqual([w.won, w.lost, w.expired, w.open, w.decided], [2, 1, 2, 1, 5]);
+  assert.equal(w.rate, 40);
+  assert.equal(w.wonValue, 1500);
+  assert.equal(w.valueRate, Math.round(100 * 1500 / 4200));
+  assert.equal(w.daysToWin, 15);        // 20 and 10 days
+  assert.equal(w.daysToLose, 10);
+  assert.equal(w.byMonth.length, 12);
+  assert.equal(w.byMonth.find(m => m.key === '2026-03').rate, 100);
+  assert.deepEqual(w.byLeadSource.find(g => g.key === 'Web'), {...w.byLeadSource.find(g => g.key === 'Web'), won: 1, lost: 1, rate: 50});
+  assert.deepEqual(w.lostQuotes.map(q => q.reference), ['C', 'E', 'D']);
+  assert.equal(w.lostQuotes[1].outcome, 'expired');
+});
+
+test('months back run up to this month', () => {
+  assert.deepEqual(monthsBack('2026-02-10', 3), ['2025-12', '2026-01', '2026-02']);
+});
+
+test('a booking counts weekdays at its daily times, as Scheduling does', () => {
+  assert.deepEqual(bookingDays({start: '2026-11-13T08:00', end: '2026-11-17T16:00', weekend: false}), {days: ['2026-11-13', '2026-11-16', '2026-11-17'], daily: 8});
+  assert.equal(bookingDays({start: '2026-11-14T08:00', end: '2026-11-15T16:30', weekend: true}).days.length, 2);
+  assert.deepEqual(bookingDays({start: '2026-11-10T09:00', end: '2026-11-10T13:30', weekend: false}), {days: ['2026-11-10'], daily: 4.5});
+  assert.deepEqual(bookingDays({start: '2026-11-10T08:00', end: '2026-11-12T00:00', weekend: false}), {days: ['2026-11-10', '2026-11-11'], daily: 8});
+});
+
+test('capacity takes time away off each worker and counts crews still to find', () => {
+  const c = capacity({
+    workers: [{id: 'a', name: 'Al', jobTitle: 'Joiner'}, {id: 'b', name: 'Bea', jobTitle: ''}],
+    assignments: [{workerId: 'a', start: '2026-11-02T08:00', end: '2026-11-13T16:00', weekend: false},
+      {workerId: 'gone', start: '2026-11-09T08:00', end: '2026-11-13T16:00', weekend: false}],
+    away: [{workerId: 'b', kind: 'holiday', from: '2026-11-16', to: '2026-11-17', hours: null},
+      {workerId: 'b', kind: 'sickness', from: '2026-11-18', to: '2026-11-18', hours: 4},
+      {workerId: 'a', kind: 'training', from: '2026-11-12', to: '2026-11-12', hours: null}],
+    plans: [{jobNumber: 'Q9', name: 'Nine', start: '2026-11-16T08:00', end: '2026-11-17T16:00', weekend: false, minCrew: 1, loneWorking: false, crew: 0},
+      {jobNumber: 'Q8', name: 'Eight', start: '2026-11-16T08:00', end: '2026-11-17T16:00', weekend: false, minCrew: 1, loneWorking: true, crew: 1}],
+  }, '2026-11-10');
+  assert.equal(c.weeks.length, 8);
+  const [w1, w2] = c.weeks;
+  assert.equal(w1.week, '2026-11-09');
+  assert.equal(w1.available, 2 * 4 * 8 - 8, 'from today, Tuesday: four days each, less Al\'s training day');
+  assert.equal(w1.booked, 32, 'Al is booked Tuesday to Friday; someone not on the crew list is ignored');
+  assert.equal(w2.available, 80 - 16 - 4);
+  assert.equal(w2.unfilled, 2 * 2 * 8, 'Q9 needs two (no lone working) for two days; Q8 is fine');
+  assert.deepEqual(c.short.map(j => [j.jobNumber, j.missing, j.hours]), [['Q9', 2, 32]]);
+  const al = c.workers.find(p => p.name === 'Al');
+  assert.equal(al.clashes, 1, 'booked on his training day');
+  assert.equal(al.weeks[0].booked, 32);
+});
+
+test('capacity uses the firm\'s own working day when it sets one', () => {
+  const crew = {workers: [{id: 'a', name: 'Al'}], assignments: [], away: [{workerId: 'a', kind: 'holiday', from: '2026-11-16', to: '2026-11-16', hours: null}], plans: []};
+  assert.equal(capacity(crew, TODAY).weeks[1].available, 4 * 8);
+  const ten = capacity(crew, TODAY, {dayHours: 10});
+  assert.equal(ten.dayHours, 10);
+  assert.equal(ten.weeks[1].available, 4 * 10, 'a day away takes off the whole 10 hours');
+  assert.equal(capacity(crew, TODAY, {dayHours: 'nonsense'}).dayHours, 8);
+});
+
+test('where the hours went splits customer, internal and leave by week, job and worker', () => {
+  const r = hoursWent([
+    {week: '2026-11-09', jobNumber: 'Q1', jobName: 'One', kind: 'customer', workerId: 'a', worker: 'Al', hours: 30},
+    {week: '2026-11-02', jobNumber: 'q1', jobName: 'One', kind: 'customer', workerId: 'b', worker: 'Bea', hours: 7.25},
+    {week: '2026-11-09', jobNumber: 'YARD', jobName: 'Yard', kind: 'internal', workerId: 'a', worker: 'Al', hours: 10},
+    {week: '2026-11-09', jobNumber: 'HOL', jobName: 'Leave', kind: 'holiday', workerId: 'b', worker: 'Bea', hours: 8},
+    {week: '2026-08-10', jobNumber: 'Q1', jobName: 'One', kind: 'customer', workerId: 'a', worker: 'Al', hours: 99},   // too long ago
+  ], TODAY);
+  assert.equal(r.weeks.length, 12);
+  assert.equal(r.from, '2026-08-24');
+  assert.deepEqual([r.customer, r.internal, r.holiday, r.worked, r.customerShare], [37.25, 10, 8, 47.25, 79]);
+  assert.deepEqual(r.customerJobs, [{jobNumber: 'Q1', name: 'One', hours: 37.25, weeks: 2}]);
+  assert.equal(r.weeks[11].customerShare, 75);
+  assert.deepEqual(r.workers.map(p => [p.name, p.customerShare]), [['Al', 75], ['Bea', 100]]);
+});
+
 test('the demo data builds every report', () => {
   const d = demoData(TODAY);
+  assert.ok(winRate(d.quotes, TODAY).decided > 10);
+  assert.equal(capacity(d.crew, TODAY).crew, 6);
+  assert.equal(hoursWent(d.worked, TODAY).weeks.length, 12);
   assert.equal(pipeline(d.quotes, TODAY).count, 4);
   assert.equal(orderBook(d.quotes, TODAY).count, 3);
   assert.equal(hours(d.jobs, d.booked, TODAY).over, 1);

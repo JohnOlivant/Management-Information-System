@@ -8,6 +8,8 @@
 #       makes (or updates) the MIS firm; leave out any app the firm doesn't use
 #   sudo bash add-firm.sh grant <email> <short-name>
 #       lets that login open the MIS for that firm (they must already have a login)
+#   sudo bash add-firm.sh day-hours <short-name> <hours>
+#       sets the firm's normal working day for crew capacity, e.g. 10 (8 if never set)
 #
 # Firms are kept in /etc/mis/firms.json; the MIS reads it again within a minute, no restart needed.
 set -euo pipefail
@@ -49,7 +51,9 @@ add)
       if (!UUID.test(value || "")) die(`"${l}": that is not an id from the list`);
       firm[app] = value.toLowerCase();
     }
-    const list = JSON.parse(fs.readFileSync(file, "utf8")).filter(f => f.id !== id);
+    const all = JSON.parse(fs.readFileSync(file, "utf8")), old = all.find(f => f.id === id);
+    if (old && old.dayHours) firm.dayHours = old.dayHours;   // keep the working day already set
+    const list = all.filter(f => f.id !== id);
     list.push(firm);
     fs.writeFileSync(file, JSON.stringify(list, null, 2) + "\n");
     console.log(`Saved ${name} (${id}): ` + (["quoting", "scheduling", "timesheets"].filter(a => firm[a]).join(", ") || "no apps linked"));
@@ -72,8 +76,24 @@ SQL
   [ "$n" = 1 ] || die "no login with the email $email. Add the person on the sign-in's setup page first."
   echo "$email can now open the MIS for $name."
   ;;
+"day-hours")
+  id=${2:?Give the firm short name}
+  hours=${3:?Give the hours in a working day, e.g. 10}
+  "$NODE" -e '
+    const fs = require("fs"), [file, id, hours] = process.argv.slice(1);
+    const die = m => { console.error("Stopped: " + m); process.exit(1); };
+    const h = Number(hours);
+    if (!(h > 0 && h <= 24)) die("give the hours in a working day, from 1 to 24, e.g. 10 or 7.5");
+    const list = JSON.parse(fs.readFileSync(file, "utf8")), firm = list.find(f => f.id === id);
+    if (!firm) die(`no MIS firm called ${id}: add it first.`);
+    firm.dayHours = h;
+    fs.writeFileSync(file, JSON.stringify(list, null, 2) + "\n");
+    console.log(`${firm.name} now has a ${h}-hour working day in crew capacity.`);
+  ' "$FIRMS" "$id" "$hours"
+  chown root:mis "$FIRMS"; chmod 640 "$FIRMS"
+  ;;
 *)
-  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+  sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'
   exit 1
   ;;
 esac

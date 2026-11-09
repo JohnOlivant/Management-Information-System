@@ -1,13 +1,13 @@
 'use strict';
 // Made-up data for the demo (npm run demo) and the tests: one small building firm, dated around `today`.
-const {monthsFrom} = require('./reports');
+const {monthsFrom, weekStart} = require('./reports');
 
 function demoData(today) {
   const d = n => { const x = new Date(today + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
   const [m0, m1, m2, m3] = monthsFrom(today, 4);
   const q = (reference, title, customer, status, value, issued, extra = {}) => ({
     reference, title, customer, leadSource: extra.leadSource || 'Repeat customer', jobType: extra.jobType || 'Extension', kind: extra.kind || 'firm',
-    status, value: String(value), issuedOn: d(issued), validUntil: d(issued + 30), acceptedValue: extra.acceptedValue ?? null,
+    status, value: String(value), issuedOn: d(issued), firstIssuedOn: d(extra.firstIssued ?? issued), validUntil: d(issued + 30), expiredOn: extra.expiredOn ?? null, acceptedValue: extra.acceptedValue ?? null,
     respondedOn: extra.respondedOn ?? null, cancelled: false, completedOn: extra.completedOn ?? null,
     programmeStarts: extra.starts ?? null, programmeEnds: extra.ends ?? null, scheduleState: extra.scheduleState ?? null, stages: extra.stages || [],
   });
@@ -27,6 +27,18 @@ function demoData(today) {
     q('Q00027', 'Garden room', 'S. Clarke', 'accepted', 22600, -30, {jobType: 'Outbuilding', respondedOn: d(-6)}),
     q('Q00019', 'Bathroom and en-suite', 'D. Hughes', 'authorised', 15400, -120, {jobType: 'Refurbishment', respondedOn: d(-100), completedOn: d(-20),
       stages: [{description: 'On completion', percent: '100', expectedOn: d(-18)}]}),
+    // Older answers, for the win rate.
+    q('Q00012', 'Kitchen refit', 'A. Brown', 'authorised', 18200, -300, {jobType: 'Refurbishment', leadSource: 'Referral', respondedOn: d(-290), completedOn: d(-200)}),
+    q('Q00013', 'Single-storey extension', 'K. Shaw', 'declined', 54000, -280, {leadSource: 'Website', respondedOn: d(-255)}),
+    q('Q00014', 'Warehouse office', 'Hedon Haulage', 'authorised', 31500, -250, {jobType: 'Commercial fit-out', leadSource: 'Repeat customer', respondedOn: d(-236), completedOn: d(-150)}),
+    q('Q00015', 'Loft dormer', 'P. Grant', 'expired', 29800, -230, {jobType: 'Loft', leadSource: 'Website', expiredOn: d(-200)}),
+    q('Q00016', 'Garage conversion', 'L. Evans', 'authorised', 21900, -200, {leadSource: 'Referral', respondedOn: d(-191), completedOn: d(-120)}),
+    q('Q00017', 'Shop refit', 'Driffield Florist', 'declined', 9400, -180, {jobType: 'Commercial fit-out', kind: 'budget', leadSource: 'Website', respondedOn: d(-170)}),
+    q('Q00018', 'Wraparound extension', 'N. Cole', 'authorised', 76500, -160, {leadSource: 'Repeat customer', respondedOn: d(-139), completedOn: d(-40)}),
+    q('Q00020', 'Loft conversion', 'T. Ahmed', 'declined', 38900, -130, {jobType: 'Loft', leadSource: 'Website', respondedOn: d(-118)}),
+    q('Q00022', 'Utility room', 'B. Lowe', 'expired', 8600, -110, {jobType: 'Refurbishment', leadSource: 'Website', expiredOn: d(-80)}),
+    q('Q00023', 'Dental surgery fit-out', 'Molescroft Dental', 'authorised', 64200, -95, {jobType: 'Commercial fit-out', leadSource: 'Referral', respondedOn: d(-84), completedOn: d(-10)}),
+    q('Q00025', 'Rear extension', 'F. Morris', 'declined', 44100, -70, {leadSource: 'Website', respondedOn: d(-49)}),
   ];
   const jobs = [
     {jobNumber: 'Q00021', name: 'Two-storey side extension', status: 'scheduled', startsOn: d(-35), endsOn: d(40), plannedHours: 640, quotedHours: 600},
@@ -41,7 +53,41 @@ function demoData(today) {
     {jobNumber: 'Q0021', jobName: 'Wilson extension (typo)', kind: 'customer', approved: 16, pending: 0, firstDate: d(-9), lastDate: d(-8)},
     {jobNumber: 'YARD', jobName: 'Yard and van', kind: 'internal', approved: 42, pending: 6, firstDate: d(-60), lastDate: d(-2)},
   ];
-  return {quotes, jobs, booked, have: {quoting: true, scheduling: true, timesheets: true}, problems: []};
+  // Scheduling: six crew, their bookings over the next few weeks and some time away.
+  const at = (n, hm) => `${d(n)}T${hm}`;
+  const crewList = [['c1', 'Sam Archer', 'Joiner'], ['c2', 'Priya Nair', 'Bricklayer'], ['c3', 'Tom Booth', 'Labourer'], ['c4', 'Leah Moss', 'Site manager'],
+    ['c5', 'Dan Reid', 'Joiner'], ['c6', 'Ollie Fox', 'Apprentice']];
+  const book = (workerId, jobNumber, jobName, from, to) => ({workerId, jobNumber, jobName, start: at(from, '08:00'), end: at(to, '16:00'), weekend: false});
+  const crew = {
+    workers: crewList.map(([id, name, jobTitle]) => ({id, name, jobTitle})),
+    assignments: [
+      ...['c1', 'c2', 'c3', 'c6'].map(w => book(w, 'Q00021', 'Two-storey side extension', -35, 40)),
+      ...['c4', 'c5'].map(w => book(w, 'Q00024', 'Café refurbishment', -14, 12)),
+      book('c5', 'Q00026', 'Porch and canopy', 14, 21),
+    ],
+    away: [{workerId: 'c2', kind: 'holiday', from: d(15), to: d(19), hours: null}, {workerId: 'c3', kind: 'training', from: d(3), to: d(3), hours: null},
+      {workerId: 'c1', kind: 'sickness', from: d(1), to: d(1), hours: null}],
+    plans: [
+      {jobNumber: 'Q00026', name: 'Porch and canopy', status: 'scheduled', start: at(14, '08:00'), end: at(21, '16:00'), weekend: false, minCrew: 2, loneWorking: false, crew: 1},
+      {jobNumber: 'Q00027', name: 'Garden room', status: 'unscheduled', start: at(28, '08:00'), end: at(45, '16:00'), weekend: false, minCrew: 3, loneWorking: false, crew: 0},
+    ],
+  };
+  // Timesheets: hours by week for the last 12 weeks.
+  const worked = [];
+  const monday = weekStart(today);
+  for (let wk = 11; wk >= 0; wk--) {
+    const week = (() => { const x = new Date(monday + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - 7 * wk); return x.toISOString().slice(0, 10); })();
+    crewList.forEach(([workerId, worker], i) => {
+      const days = wk === 0 ? 1 : 5;
+      const job = i % 2 ? ['Q00024', 'Café refurbishment'] : ['Q00021', 'Two-storey side extension'];
+      const internal = (i + wk) % 4 === 0 ? 6 : i === 5 ? 4 : 1.5;
+      const leave = i === 1 && wk === 6 ? 'holiday' : i === 2 && wk === 3 ? 'sickness' : null;
+      if (leave) { worked.push({week, jobNumber: 'HOL', jobName: 'Leave', kind: leave, workerId, worker, hours: 8 * days}); return; }
+      worked.push({week, jobNumber: job[0], jobName: job[1], kind: 'customer', workerId, worker, hours: 8.5 * days - internal});
+      worked.push({week, jobNumber: i === 3 ? 'OFFICE' : 'YARD', jobName: i === 3 ? 'Office and estimating' : 'Yard and van', kind: 'internal', workerId, worker, hours: internal});
+    });
+  }
+  return {quotes, jobs, booked, crew, worked, have: {quoting: true, scheduling: true, timesheets: true}, problems: []};
 }
 
 /** Made-up Timesheets lines for the demo's Timesheet report: four workers over the last eight weeks. */

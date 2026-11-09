@@ -5,8 +5,11 @@ The first MIS reports, built from the data Quoting, Scheduling and Timesheets al
 | Tab | What it shows | From |
 | --- | --- | --- |
 | Quote pipeline | Open quotes by month sent, customer, lead source and job type; quotes running out in the next 14 days | Quoting |
+| Win rate | Quotes first sent in the last 12 months that were won, declined or ran out, by month, lead source, job type and customer; typical time to an answer | Quoting |
 | Order book and cash in | Won jobs not yet complete and the money expected each month from their payment stages | Quoting |
+| Crew capacity | Crew hours available (the firm's working day, 8 hours unless set, Monday to Friday, less time away) against hours booked, this week and the next seven; jobs short of crew; each worker week by week | Scheduling |
 | Hours by job | Quoted, planned and booked hours per job; jobs past 80% of plan or over it | Scheduling, Timesheets |
+| Where the hours went | The last 12 weeks of timesheet hours split between customer jobs, internal work and leave, by week, job and worker | Timesheets |
 | Timesheet report | The Timesheets app's own report for the whole firm: hours, subsistence, expenses and mileage by worker, job, code, activity, expense category and approval status, with its CSV downloads | Timesheets |
 | Things to fix | Won jobs with no payment stages or not in Scheduling, jobs with no planned hours, timesheet hours on unknown job numbers | All three |
 
@@ -23,7 +26,7 @@ npm run demo      # http://localhost:3400, made-up data, no sign-in
 ## How it fits together
 
 - **Sign-in:** the shared sign-in (`../signin`). Someone can open the MIS for a firm when their login has `mis` access for that firm. The tenant id is the MIS firm's short name.
-- **Firms:** `/etc/mis/firms.json` links one MIS firm to its id in each app (Quoting `company_id`, Scheduling and Timesheets `client_id`), as these differ until MIS gap G5 is settled. `deploy/add-firm.sh` keeps it.
+- **Firms:** `/etc/mis/firms.json` links one MIS firm to its id in each app (Quoting `company_id`, Scheduling and Timesheets `client_id`), as these differ until MIS gap G5 is settled. `deploy/add-firm.sh` keeps it, including each firm's working day for crew capacity (`dayHours`, 8 if not set).
 - **Data:** read-only, as the `rule29_mis_reader` database role, with only the grants in `db/reader-*.sql`. Quoting's row security still applies; the MIS sets the firm on each read. Scheduling is read through `integration.jobs_v1`, so standalone and connected mode both work. Answers are cached for a minute.
 
 ## Settings

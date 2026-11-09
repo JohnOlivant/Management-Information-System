@@ -25,6 +25,7 @@ function loadFirms(file) {
     for (const app of ['quoting', 'scheduling', 'timesheets']) {
       if (f[app] !== undefined && f[app] !== null && !UUID.test(f[app])) throw new Error(`Firm ${f.id}: ${app} must be that app's firm id.`);
     }
+    if (f.dayHours !== undefined && !(Number(f.dayHours) > 0 && Number(f.dayHours) <= 24)) throw new Error(`Firm ${f.id}: dayHours must be the hours in a working day, 1 to 24.`);
   }
   return new Map(list.map(f => [f.id, f]));
 }
@@ -67,7 +68,7 @@ function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl,
     const key = firm.id, hit = cache.get(key);
     if (hit && hit.until > Date.now()) return hit.value;
     const d = await data(firm);
-    const value = {...allReports(d, today()), problems: d.problems || []};
+    const value = {...allReports(d, today(), {dayHours: firm.dayHours}), problems: d.problems || []};
     cache.set(key, {until: Date.now() + cacheSeconds * 1000, value});
     return value;
   }

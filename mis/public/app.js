@@ -85,6 +85,95 @@
         'No jobs in Scheduling yet.')}`;
   }
 
+  const pct = v => v === null || v === undefined ? '–' : v + '%';
+  const weekName = w => 'w/c ' + new Date(w + 'T12:00:00Z').toLocaleDateString('en-GB', {day: 'numeric', month: 'short'});
+  const OUTCOME = {lost: 'Declined', expired: 'Ran out'};
+
+  function winRate(w) {
+    const groupBlock = (title, rows) => `<div><h3>${esc(title)}</h3>${table([{t: title.replace(/^By /, '')}, {t: 'Won', num: true}, {t: 'Lost', num: true}, {t: 'Win rate', num: true}, {t: 'Won value', num: true, phone: false}],
+      rows.map(g => [esc(g.key), g.won, g.lost + g.expired, pct(g.rate), money(g.wonValue)]), 'No quotes with an answer yet.')}</div>`;
+    const maxDecided = Math.max(1, ...w.byMonth.map(m => m.decided + m.open));
+    return `<h2>Win rate</h2>
+      <p class="lead">Quotes first sent since ${date(w.since)}, and what became of them. The win rate is quotes won out of those with an answer: won, declined, or ran out with no answer. Quotes still waiting are shown but left out of the rate. Values are ex VAT, at the accepted price for won jobs.</p>
+      <div class="tiles">
+        ${tile('Win rate', pct(w.rate), `${w.won} won of ${w.decided} answered`)}
+        ${tile('Win rate by value', pct(w.valueRate), `${money(w.wonValue)} won of ${money(w.wonValue + w.lostValue + w.expiredValue)}`)}
+        ${tile('Lost or ran out', w.lost + w.expired, `${money(w.lostValue + w.expiredValue)}; ${w.expired} with no answer`)}
+        ${tile('Time to an answer', w.daysToWin === null ? '–' : `${Math.round(w.daysToWin)} days`, w.daysToLose === null ? 'typical time to a yes' : `typical time to a yes; ${Math.round(w.daysToLose)} days to a no`)}
+      </div>
+      <h3>By month first sent</h3>
+      <div class="bars">${w.byMonth.map(m => `<div class="bar-row wide"><span>${esc(monthName(m.key))}</span><div class="track stack">
+          <span class="seg won" data-w="${(100 * m.won / maxDecided).toFixed(1)}"></span><span class="seg lost" data-w="${(100 * (m.lost + m.expired) / maxDecided).toFixed(1)}"></span><span class="seg open" data-w="${(100 * m.open / maxDecided).toFixed(1)}"></span>
+        </div><span class="amt">${m.decided ? `${m.won} of ${m.decided} · ${m.rate}%` : m.open ? `${m.open} waiting` : '–'}</span></div>`).join('')}
+        <div class="legend"><span><i class="seg won"></i>Won</span><span><i class="seg lost"></i>Lost or ran out</span><span><i class="seg open"></i>Still waiting</span></div>
+      </div>
+      <p class="muted">Lost counts quotes declined and quotes that ran out with no answer.</p>
+      <div class="grid2">${groupBlock('By lead source', w.byLeadSource)}${groupBlock('By job type', w.byJobType)}</div>
+      <div class="grid2">${groupBlock('By customer', w.byCustomer.slice(0, 10))}${groupBlock('Firm or budget', w.byKind)}</div>
+      <h3>Quotes lost or run out</h3>
+      ${table([{t: 'Quote'}, {t: 'Customer'}, {t: 'What happened'}, {t: 'Lead source', phone: false}, {t: 'Sent', phone: false}, {t: 'Value', num: true}],
+        w.lostQuotes.map(q => [`<b>${esc(q.reference)}</b><small>${esc(q.title)}</small>`, esc(q.customer || '–'),
+          `${OUTCOME[q.outcome]}<small>${date(q.endedOn)}</small>`, esc(q.leadSource), date(q.sentOn), money(q.value)]), 'None lost in this time.')}`;
+  }
+
+  function capacity(c) {
+    const over = c.weeks.filter(w => w.free < 0).length;
+    const h = v => num(Math.round(v));
+    const cell = x => x.available === 0 && x.booked === 0 ? '<span class="muted">–</span>'
+      : `<span class="${x.booked > x.available ? 'pill over' : x.share !== null && x.share < 50 ? 'pill ok' : ''}">${h(x.booked)}/${h(x.available)}</span>`;
+    return `<h2>Crew capacity</h2>
+      <p class="lead">Crew hours free against hours booked in Scheduling, this week (from today) and the next seven. Each active worker has a ${num(c.dayHours)}-hour day, Monday to Friday (set for each firm), less holiday, sickness, training and other time booked away. Booked hours follow each job's daily times. Still to crew is the hours on jobs short of their minimum crew.</p>
+      <div class="tiles">
+        ${tile('Crew', c.crew, 'active workers in Scheduling')}
+        ${tile('Booked', pct(c.share), `${h(c.booked)} of ${h(c.available)} hours`)}
+        ${tile(c.free >= 0 ? 'Free hours' : 'Over-booked', h(Math.abs(c.free)), over ? `${over} week${over > 1 ? 's' : ''} over-booked` : 'over the 8 weeks', over ? 'warn' : '')}
+        ${tile('Still to crew', h(c.unfilled), c.short.length ? `hours on ${c.short.length} job${c.short.length > 1 ? 's' : ''}` : 'every job has its crew', c.unfilled ? 'warn' : '')}
+      </div>
+      <h3>Week by week</h3>
+      ${table([{t: 'Week'}, {t: 'Available', num: true}, {t: 'Booked', num: true}, {t: 'Free', num: true}, {t: 'Booked share'}, {t: 'Still to crew', num: true, phone: false}, {t: 'Away', num: true, phone: false}],
+        c.weeks.map((w, i) => [`<span class="nowrap">${i === 0 ? 'This week' : weekName(w.week)}</span>`, h(w.available), h(w.booked),
+          w.free < 0 ? `<span class="pill over">${h(-w.free)} over</span>` : h(w.free),
+          w.share === null ? '–' : `<span class="meter ${w.share > 100 ? 'over' : ''}"><span data-w="${Math.min(100, w.share)}"></span></span>${w.share}%`,
+          w.unfilled ? `<span class="pill near">${h(w.unfilled)}</span>` : '0', h(w.away)]), 'No crew in Scheduling.')}
+      ${c.short.length ? `<h3>Jobs short of crew</h3>${table([{t: 'Job'}, {t: 'Dates'}, {t: 'Crew', num: true}, {t: 'Needs', num: true}, {t: 'Hours to crew', num: true}],
+        c.short.map(j => [`<b>${esc(j.jobNumber)}</b><small>${esc(j.name)}</small>`, `<span class="nowrap">${date(j.starts)}</span> to <span class="nowrap">${date(j.ends)}</span>`, j.crew, j.needed, h(j.hours)]), '')}` : ''}
+      <h3>By worker</h3>
+      <p class="muted">Hours booked of hours available each week. Least booked first.</p>
+      ${table([{t: 'Worker'}, ...c.weeks.map((w, i) => ({t: i === 0 ? 'This wk' : weekName(w.week).slice(4), num: true, phone: i < 3})), {t: 'Booked', num: true}],
+        c.workers.map(p => [`<b>${esc(p.name)}</b><small>${esc(p.jobTitle)}${p.clashes ? ` · <span class="pill over">booked on ${p.clashes} day${p.clashes > 1 ? 's' : ''} away</span>` : ''}</small>`,
+          ...p.weeks.map(cell), pct(p.share)]), 'No active workers in Scheduling.')}`;
+  }
+
+  function hoursWent(r) {
+    const max = Math.max(1, ...r.weeks.map(w => w.all));
+    const seg = (cls, v) => `<span class="seg ${cls}" data-w="${(100 * v / max).toFixed(1)}"></span>`;
+    const leave = r.holiday + r.sickness;
+    return `<h2>Where the hours went</h2>
+      <p class="lead">Hours in Timesheets over the last 12 weeks (${date(r.from)} to ${date(r.to)}), split between customer jobs, internal work and leave. Includes timesheets not yet approved; drafts are left out.</p>
+      <div class="tiles">
+        ${tile('Hours worked', num(Math.round(r.worked)), `${num(Math.round(leave))} more on leave`)}
+        ${tile('On customer jobs', pct(r.customerShare), `${num(Math.round(r.customer))} hours`)}
+        ${tile('Internal', num(Math.round(r.internal)), 'hours on yards, vans, office and other own work', r.customerShare !== null && r.customerShare < 75 ? 'warn' : '')}
+        ${tile('Holiday and sickness', num(Math.round(leave)), `${num(Math.round(r.holiday))} holiday, ${num(Math.round(r.sickness))} sickness`)}
+      </div>
+      <h3>Week by week</h3>
+      <div class="bars">${r.weeks.map(w => `<div class="bar-row wide"><span>${esc(weekName(w.week).slice(4))}</span><div class="track stack">
+          ${seg('won', w.customer)}${seg('internal', w.internal)}${seg('leave', w.holiday + w.sickness)}
+        </div><span class="amt">${num(Math.round(w.all))} h${w.customerShare === null ? '' : ` · ${w.customerShare}%`}</span></div>`).join('')}
+        <div class="legend"><span><i class="seg won"></i>Customer jobs</span><span><i class="seg internal"></i>Internal</span><span><i class="seg leave"></i>Holiday and sickness</span><span class="muted">% is the share of worked hours on customer jobs</span></div>
+      </div>
+      <div class="grid2">
+        <div><h3>Customer jobs</h3>${table([{t: 'Job'}, {t: 'Weeks', num: true}, {t: 'Hours', num: true}],
+          r.customerJobs.map(j => [`<b>${esc(j.jobNumber)}</b><small>${esc(j.name)}</small>`, j.weeks, num2(j.hours)]), 'No hours on customer jobs.')}</div>
+        <div><h3>Internal work</h3>${table([{t: 'Job'}, {t: 'Weeks', num: true}, {t: 'Hours', num: true}],
+          r.internalJobs.map(j => [`<b>${esc(j.jobNumber)}</b><small>${esc(j.name)}</small>`, j.weeks, num2(j.hours)]), 'No internal hours.')}</div>
+      </div>
+      <h3>By worker</h3>
+      ${table([{t: 'Worker'}, {t: 'Customer', num: true}, {t: 'Internal', num: true}, {t: 'Leave', num: true, phone: false}, {t: 'On customer jobs'}],
+        r.workers.map(p => [esc(p.name), num2(p.customer), num2(p.internal), num2(p.holiday + p.sickness),
+          p.customerShare === null ? '–' : `<span class="meter"><span data-w="${p.customerShare}"></span></span>${p.customerShare}%`]), 'No hours in these weeks.')}`;
+  }
+
   function fixes(list) {
     const apps = ['Quoting', 'Scheduling', 'Timesheets'];
     return `<h2>Things to fix</h2>
@@ -182,7 +271,9 @@
   function render() {
     document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     if (!data) return;
-    const views = {pipeline: () => pipeline(data.pipeline), orderBook: () => orderBook(data.orderBook), hours: () => hours(data.hours), timesheet, fixes: () => fixes(data.fixes)};
+    const views = {pipeline: () => pipeline(data.pipeline), winRate: () => winRate(data.winRate), orderBook: () => orderBook(data.orderBook),
+      capacity: () => capacity(data.capacity), hours: () => hours(data.hours), hoursWent: () => hoursWent(data.hoursWent), timesheet, fixes: () => fixes(data.fixes)};
+    if (!views[tab]) tab = 'pipeline';
     const missing = ['quoting', 'scheduling', 'timesheets'].filter(a => !data.have?.[a]);
     $('#main').innerHTML = (missing.length ? `<p class="note">Not linked for this firm yet: ${missing.map(a => a[0].toUpperCase() + a.slice(1)).join(', ')}. Figures from ${missing.length > 1 ? 'those apps' : 'that app'} are missing.</p>` : '') + views[tab]();
     // Widths are set here, not in the markup, so the page needs no inline styles.
