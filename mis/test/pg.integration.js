@@ -11,6 +11,7 @@ const assert = require('node:assert/strict');
 const {Pool} = require('pg');
 const {quotes, jobs, booked, firmData} = require('../src/sources');
 const {allReports} = require('../src/reports');
+const tsReport = require('../src/timesheet-report');
 
 const env = process.env;
 const url = (base, db) => `${base.replace(/\/$/, '')}/${db}`;
@@ -118,6 +119,17 @@ test('reads each app as the reader role, one firm only', {skip: !ready && 'set A
     assert.deepEqual(r.orderBook.cashIn.slice(1, 3).map(m => m.value), [1020, 4080]);
     assert.equal(r.hours.jobs[0].usedShare, 11);
     assert.deepEqual(r.fixes, []);
+
+    // The Timesheet report reads the same lines as Timesheets does, for this firm only.
+    const ref = await tsReport.reference(p.timesheets, A);
+    assert.equal(ref.workers.length, 1); assert.equal(ref.jobs.length, 1); assert.equal(ref.periods.length, 2);
+    const f = tsReport.filters(new URLSearchParams({from: '2026-10-01', to: '2026-10-31'}));
+    const rep = tsReport.build(await tsReport.lines(p.timesheets, A, f), f, A);
+    assert.equal(rep.totals.hours, 11);
+    assert.equal(rep.byJob[0].reference, 'Q00002');
+    const approved = tsReport.build(await tsReport.lines(p.timesheets, A, {...f, approval: 'approved'}), f, A);
+    assert.equal(approved.totals.hours, 8);
+    assert.match(tsReport.csv(rep, 'jobs'), /Q00002/);
 
     // The reader cannot write.
     await assert.rejects(p.timesheets.query(`DELETE FROM timesheet.jobs`), /permission denied/);

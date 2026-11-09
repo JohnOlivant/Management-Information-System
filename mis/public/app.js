@@ -92,14 +92,100 @@
         : '<div class="table-wrap"><p class="empty">Nothing to fix. 👍</p></div>'}`;
   }
 
+  // ---- Timesheet report: the Timesheets app's own report, for the whole firm ----
+  const TS_STATUS = {draft: 'Draft', submitted: 'Awaiting supervisor', supervisor_approved: 'Awaiting payroll', payroll_approved: 'Payroll approved',
+    supervisor_returned: 'Returned by supervisor', payroll_returned: 'Returned by payroll', exported: 'Exported'};
+  let ts = null; // {firm, ref, filters, report, error, busy}
+  const firmId = () => $('#firm').value;
+  const tsQuery = f => new URLSearchParams({firm: firmId(), from: f.from, to: f.to, approval: f.approval, workerId: f.workerId, jobId: f.jobId}).toString();
+
+  async function tsLoad() {
+    if (ts && ts.firm === firmId()) return;
+    ts = {firm: firmId(), busy: true};
+    try {
+      const ref = await get('/api/timesheet-report/reference?firm=' + encodeURIComponent(firmId()));
+      const iso = data.today, period = ref.periods.find(p => p.date_from <= iso && p.date_to >= iso);
+      const back = new Date(iso + 'T12:00:00Z'); back.setUTCDate(back.getUTCDate() - 27);
+      ts.ref = ref;
+      ts.filters = {from: period ? period.date_from : back.toISOString().slice(0, 10), to: period ? period.date_to : iso, approval: 'all', workerId: '', jobId: ''};
+      await tsRun(false);
+    } catch (e) { ts.error = e.message; ts.busy = false; }
+    if (tab === 'timesheet') render();
+  }
+
+  async function tsRun(draw = true) {
+    ts.busy = true; ts.error = null;
+    if (draw) render();
+    try { ts.report = await get('/api/timesheet-report?' + tsQuery(ts.filters)); } catch (e) { ts.error = e.message; ts.report = null; }
+    ts.busy = false;
+    if (draw) render();
+  }
+
+  function timesheet() {
+    if (!ts || ts.firm !== firmId()) { tsLoad(); return '<h2>Timesheet report</h2><p class="muted">Loading…</p>'; }
+    if (!ts.ref) return `<h2>Timesheet report</h2><p class="note">${esc(ts.error || 'Loading…')}</p>`;
+    const f = ts.filters, r = ts.report;
+    const opt = (list, all, chosen) => `<option value="">${all}</option>` + list.map(x => `<option value="${esc(x.id)}" ${x.id === chosen ? 'selected' : ''}>${esc((x.reference ? x.reference + ' · ' : '') + x.name + (x.active ? '' : ' (retired)'))}</option>`).join('');
+    const money2 = v => new Intl.NumberFormat('en-GB', {style: 'currency', currency: 'GBP'}).format(v || 0);
+    const amounts = [{t: 'Hours', num: true, v: x => num(x.hours)}, {t: 'Subsistence', num: true, v: x => money2(x.subsistence)},
+      {t: 'Expenses incl. mileage', num: true, v: x => money2(x.expenses)}, {t: 'Mileage', num: true, v: x => money2(x.mileage), phone: false}, {t: 'Miles', num: true, v: x => num(x.miles), phone: false}];
+    const block = (title, rows, cols, note = '') => `<div><h3>${esc(title)}</h3>${note ? `<p class="muted">${esc(note)}</p>` : ''}${table(cols, rows.map(x => cols.map(c => c.v(x))), 'Nothing matches these filters.')}</div>`;
+    let results = '';
+    if (ts.busy) results = '<p class="muted">Running…</p>';
+    else if (ts.error) results = `<p class="note">${esc(ts.error)}</p>`;
+    else if (r) {
+      const csv = view => '/api/timesheet-report?' + tsQuery(f) + '&format=csv&view=' + view;
+      results = `<div class="tiles">
+          ${tile('Total hours', num(r.totals.hours))}${tile('Subsistence', money2(r.totals.subsistence))}
+          ${tile('Expenses incl. mileage', money2(r.totals.expenses), `${money2(r.totals.mileage)} mileage, ${num(r.totals.miles)} miles`)}
+          ${tile('Workers with activity', r.workerCount, `${r.lineCount} lines`)}
+        </div>
+        <div class="downloads"><span class="muted">Download CSV:</span>
+          ${[['detail', 'All detail'], ['workers', 'By worker'], ['jobs', 'By job'], ['codes', 'By code'], ['activities', 'By activity'], ['categories', 'By expense category'], ['statuses', 'By approval status']]
+            .map(([v, label]) => `<a href="${esc(csv(v))}">${label}</a>`).join('')}
+        </div>
+        ${block('By worker', r.byWorker, [{t: 'Reference', v: x => esc(x.reference)}, {t: 'Worker', v: x => esc(x.name)}, ...amounts])}
+        ${block('By job', r.byJob, [{t: 'Job', v: x => `<b>${esc(x.reference)}</b><small>${esc(x.name + (x.site ? ' · ' + x.site : ''))}</small>`}, ...amounts])}
+        <div class="grid2">
+          ${block('Hours by allocation code', r.byCode, [{t: 'Code', v: x => esc(x.reference)}, {t: 'Meaning', v: x => esc(x.name)}, {t: 'Hours', num: true, v: x => num(x.hours)}])}
+          ${block('Hours by activity', r.byActivity, [{t: 'Activity', v: x => esc(x.name)}, {t: 'Hours', num: true, v: x => num(x.hours)}], `${num(r.hoursWithoutActivity)} hours have no activity recorded.`)}
+        </div>
+        ${block('Expenses by category', r.byExpenseCategory, [{t: 'Reference', v: x => esc(x.reference)}, {t: 'Category', v: x => esc(x.name)}, {t: 'Gross', num: true, v: x => money2(x.expenses)},
+          {t: 'VAT', num: true, v: x => money2(x.vat)}, {t: 'Net', num: true, v: x => money2(x.net)}, {t: 'Miles', num: true, v: x => num(x.miles), phone: false}])}
+        ${block('By approval status', r.byStatus, [{t: 'Status', v: x => esc(TS_STATUS[x.name] || x.name)}, ...amounts])}`;
+    }
+    return `<h2>Timesheet report</h2>
+      <p class="lead">The Timesheets app's report, for everyone in the firm. Hours use the work date, subsistence the claim date, and expenses and mileage the receipt or journey date. Rejected and removed claims are left out. No pay rates or labour costs.</p>
+      <form id="ts-form" class="filters">
+        <label>From<input name="from" type="date" value="${esc(f.from)}" required></label>
+        <label>To<input name="to" type="date" value="${esc(f.to)}" required></label>
+        <label>Approval<select name="approval">${[['all', 'All approval stages'], ['approved', 'Payroll approved / exported'], ['pending', 'Not payroll approved']].map(([v, l]) => `<option value="${v}" ${v === f.approval ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label>Worker<select name="workerId">${opt(ts.ref.workers, 'All workers', f.workerId)}</select></label>
+        <label>Job<select name="jobId">${opt(ts.ref.jobs, 'All jobs', f.jobId)}</select></label>
+        <button ${ts.busy ? 'disabled' : ''}>Run report</button>
+      </form>
+      ${results}`;
+  }
+
+  function wire() {
+    const form = $('#ts-form');
+    if (form) form.addEventListener('submit', e => {
+      e.preventDefault();
+      const el = form.elements;
+      ts.filters = {from: el.from.value, to: el.to.value, approval: el.approval.value, workerId: el.workerId.value, jobId: el.jobId.value};
+      tsRun();
+    });
+  }
+
   function render() {
     document.querySelectorAll('.tabs button').forEach(b => b.setAttribute('aria-selected', String(b.dataset.tab === tab)));
     if (!data) return;
-    const views = {pipeline: () => pipeline(data.pipeline), orderBook: () => orderBook(data.orderBook), hours: () => hours(data.hours), fixes: () => fixes(data.fixes)};
+    const views = {pipeline: () => pipeline(data.pipeline), orderBook: () => orderBook(data.orderBook), hours: () => hours(data.hours), timesheet, fixes: () => fixes(data.fixes)};
     const missing = ['quoting', 'scheduling', 'timesheets'].filter(a => !data.have?.[a]);
     $('#main').innerHTML = (missing.length ? `<p class="note">Not linked for this firm yet: ${missing.map(a => a[0].toUpperCase() + a.slice(1)).join(', ')}. Figures from ${missing.length > 1 ? 'those apps' : 'that app'} are missing.</p>` : '') + views[tab]();
     // Widths are set here, not in the markup, so the page needs no inline styles.
     document.querySelectorAll('[data-w]').forEach(el => { el.style.width = el.dataset.w + '%'; });
+    wire();
     const n = data.fixes.length;
     $('#fix-count').hidden = !n; $('#fix-count').textContent = n;
     $('#foot').textContent = `Figures as of ${date(data.today)}. Refreshed when you open the page (at most a minute old).`;

@@ -44,4 +44,41 @@ function demoData(today) {
   return {quotes, jobs, booked, have: {quoting: true, scheduling: true, timesheets: true}, problems: []};
 }
 
-module.exports = {demoData};
+/** Made-up Timesheets lines for the demo's Timesheet report: four workers over the last eight weeks. */
+function demoTimesheet(today) {
+  const id = n => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const workers = [[11, 'W01', 'Sam Archer'], [12, 'W02', 'Priya Nair'], [13, 'W03', 'Tom Booth'], [14, 'W04', 'Leah Moss']];
+  const jobs = [[21, 'Q00021', 'Two-storey side extension', 'Cottingham'], [22, 'Q00024', 'Café refurbishment', 'Beverley'], [23, 'YARD', 'Yard and van', '']];
+  const codes = [[31, 'N', 'Normal time'], [32, 'OT', 'Overtime']];
+  const statusFor = d => { const age = (Date.parse(today() + 'T00:00:00Z') - Date.parse(d + 'T00:00:00Z')) / 86400000;
+    return age > 14 ? 'payroll_approved' : age > 7 ? 'supervisor_approved' : 'submitted'; };
+  function all() {
+    const out = []; let line = 100;
+    for (let back = 56; back >= 1; back--) {
+      const d = new Date(today() + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() - back);
+      if ([0, 6].includes(d.getUTCDay())) continue;
+      const date = d.toISOString().slice(0, 10), status = statusFor(date);
+      workers.forEach(([w, ref, name], i) => {
+        const [j, jref, jname, site] = jobs[(i + back) % 3 === 2 && i === 3 ? 2 : i % 2];
+        const base = {submission_id: id(500 + w), worker_id: id(w), worker_reference: ref, worker_name: name, status, period_label: `w/c ${date}`,
+          job_id: id(j), job_reference: jref, job_name: jname, site, date};
+        out.push({...base, kind: 'time', id: id(line++), values: {hours: '8.00', break_minutes: 30, code_id: id(31), code_reference: 'N', code_label: 'Normal time',
+          activity_id: back % 4 ? id(41) : null, activity_label: back % 4 ? 'Site work' : null}});
+        if (back % 5 === 0) out.push({...base, kind: 'time', id: id(line++), values: {hours: '2.00', code_id: id(32), code_reference: 'OT', code_label: 'Overtime', activity_id: id(41), activity_label: 'Site work'}});
+        if (i === 0 && back % 7 === 0) out.push({...base, kind: 'subsistence', id: id(line++), values: {amount: '12.50', category_id: id(51), category_reference: 'MEAL', category_label: 'Meal allowance'}});
+        if (i === 1 && back % 6 === 0) out.push({...base, kind: 'expense', id: id(line++), values: {gross: '27.90', vat: '0.00', net: '27.90', miles: '62', vehicle: 'car', category_id: id(61), category_reference: 'MILES', category_label: 'Mileage', receipt: false}});
+        if (i === 2 && back % 9 === 0) out.push({...base, kind: 'expense', id: id(line++), values: {gross: '48.00', vat: '8.00', net: '40.00', supplier: 'Jewson', category_id: id(62), category_reference: 'MAT', category_label: 'Materials', receipt: true}});
+      });
+    }
+    return out;
+  }
+  return {
+    reference: async () => ({workers: workers.map(([w, reference, name]) => ({id: id(w), reference, name, active: true})),
+      jobs: jobs.map(([j, reference, name]) => ({id: id(j), reference, name, active: true})), periods: []}),
+    lines: async (firm, f) => all().filter(r => r.date >= f.from && r.date <= f.to
+      && (f.approval === 'all' || (f.approval === 'approved') === ['payroll_approved', 'exported'].includes(r.status))
+      && (!f.workerId || r.worker_id === f.workerId) && (!f.jobId || r.job_id === f.jobId)),
+  };
+}
+
+module.exports = {demoData, demoTimesheet};
