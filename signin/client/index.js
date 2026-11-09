@@ -89,6 +89,8 @@ function createSignInClient({signinUrl, appId, serviceKey, cacheSeconds = 30, fe
     signOutUrl: returnTo => withQuery('/signout', returnTo),
     /** A link for the app's "Change password" item. */
     passwordUrl: returnTo => withQuery('/password', returnTo),
+    /** A link for the app's "All apps" button: the sign-in page's list of every app the person can open. */
+    appsUrl: () => base + '/',
   };
 }
 

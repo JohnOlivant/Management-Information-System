@@ -21,6 +21,7 @@ async function serve(t) {
     auth: async req => sessions[req.headers['x-test-user']] || null,
     signInUrl: r => `https://signin.example.co.uk/?app=mis&return=${encodeURIComponent(r)}`,
     signOutUrl: () => 'https://signin.example.co.uk/signout?app=mis', passwordUrl: () => 'https://signin.example.co.uk/password?app=mis',
+    appsUrl: () => 'https://signin.example.co.uk/',
     firms: () => firms, timesheet: demoTimesheet(() => '2026-11-09'), data: async f => { reads.push(f.id); return demoData('2026-11-09'); }, today: () => '2026-11-09',
     log: {error() {}},
   });
@@ -53,6 +54,7 @@ test('someone sees only the firms their MIS access names', async t => {
   const {get, reads} = await serve(t);
   const me = await (await get('/api/me', 'owner')).json();
   assert.deepEqual(me.firms, [{id: 'a', name: 'Firm A'}]);
+  assert.equal(me.home, 'https://signin.example.co.uk/', 'the All apps button goes back to the sign-in page');
   assert.equal((await get('/api/reports?firm=b', 'owner')).status, 404);
   const r = await get('/api/reports?firm=a', 'owner');
   assert.equal(r.status, 200);

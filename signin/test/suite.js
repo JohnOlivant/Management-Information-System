@@ -328,6 +328,7 @@ function suite(name, makeStore) {
       assert.equal(url.searchParams.get('app'), 'quoting');
       assert.equal(url.searchParams.get('return'), 'http://localhost:3100/estimates/42');
       assert.equal(new URL(client.signOutUrl()).pathname, '/signout');
+      assert.equal(client.appsUrl(), new URL(svc.base).origin + '/', 'All apps goes to the sign-in page itself');
     } finally { await svc.close(); }
   });
 }
