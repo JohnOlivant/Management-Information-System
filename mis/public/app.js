@@ -4,7 +4,9 @@
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
   const gbp = new Intl.NumberFormat('en-GB', {style: 'currency', currency: 'GBP', maximumFractionDigits: 0});
   const money = v => gbp.format(v || 0);
-  const num = v => v === null || v === undefined ? '–' : new Intl.NumberFormat('en-GB', {maximumFractionDigits: 1}).format(v);
+  // Hours and miles to 2 decimal places, as Timesheets shows them (10.25, not 10.3).
+  const num = v => v === null || v === undefined ? '–' : new Intl.NumberFormat('en-GB', {maximumFractionDigits: 2}).format(v);
+  const num2 = v => new Intl.NumberFormat('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(v || 0);
   const date = d => d ? new Date(d + 'T12:00:00Z').toLocaleDateString('en-GB', {day: 'numeric', month: 'short', year: 'numeric'}) : '–';
   const monthName = m => new Date(m + '-15T12:00:00Z').toLocaleDateString('en-GB', {month: 'short', year: 'numeric'});
   const STATUS = {issued: 'Waiting', accepted: 'Accepted', authorised: 'Authorised', scheduled: 'Scheduled', unscheduled: 'Not scheduled',
@@ -127,8 +129,8 @@
     const f = ts.filters, r = ts.report;
     const opt = (list, all, chosen) => `<option value="">${all}</option>` + list.map(x => `<option value="${esc(x.id)}" ${x.id === chosen ? 'selected' : ''}>${esc((x.reference ? x.reference + ' · ' : '') + x.name + (x.active ? '' : ' (retired)'))}</option>`).join('');
     const money2 = v => new Intl.NumberFormat('en-GB', {style: 'currency', currency: 'GBP'}).format(v || 0);
-    const amounts = [{t: 'Hours', num: true, v: x => num(x.hours)}, {t: 'Subsistence', num: true, v: x => money2(x.subsistence)},
-      {t: 'Expenses incl. mileage', num: true, v: x => money2(x.expenses)}, {t: 'Mileage', num: true, v: x => money2(x.mileage), phone: false}, {t: 'Miles', num: true, v: x => num(x.miles), phone: false}];
+    const amounts = [{t: 'Hours', num: true, v: x => num2(x.hours)}, {t: 'Subsistence', num: true, v: x => money2(x.subsistence)},
+      {t: 'Expenses incl. mileage', num: true, v: x => money2(x.expenses)}, {t: 'Mileage', num: true, v: x => money2(x.mileage), phone: false}, {t: 'Miles', num: true, v: x => num2(x.miles), phone: false}];
     const block = (title, rows, cols, note = '') => `<div><h3>${esc(title)}</h3>${note ? `<p class="muted">${esc(note)}</p>` : ''}${table(cols, rows.map(x => cols.map(c => c.v(x))), 'Nothing matches these filters.')}</div>`;
     let results = '';
     if (ts.busy) results = '<p class="muted">Running…</p>';
@@ -136,8 +138,8 @@
     else if (r) {
       const csv = view => '/api/timesheet-report?' + tsQuery(f) + '&format=csv&view=' + view;
       results = `<div class="tiles">
-          ${tile('Total hours', num(r.totals.hours))}${tile('Subsistence', money2(r.totals.subsistence))}
-          ${tile('Expenses incl. mileage', money2(r.totals.expenses), `${money2(r.totals.mileage)} mileage, ${num(r.totals.miles)} miles`)}
+          ${tile('Total hours', num2(r.totals.hours))}${tile('Subsistence', money2(r.totals.subsistence))}
+          ${tile('Expenses incl. mileage', money2(r.totals.expenses), `${money2(r.totals.mileage)} mileage, ${num2(r.totals.miles)} miles`)}
           ${tile('Workers with activity', r.workerCount, `${r.lineCount} lines`)}
         </div>
         <div class="downloads"><span class="muted">Download CSV:</span>
@@ -147,11 +149,11 @@
         ${block('By worker', r.byWorker, [{t: 'Reference', v: x => esc(x.reference)}, {t: 'Worker', v: x => esc(x.name)}, ...amounts])}
         ${block('By job', r.byJob, [{t: 'Job', v: x => `<b>${esc(x.reference)}</b><small>${esc(x.name + (x.site ? ' · ' + x.site : ''))}</small>`}, ...amounts])}
         <div class="grid2">
-          ${block('Hours by allocation code', r.byCode, [{t: 'Code', v: x => esc(x.reference)}, {t: 'Meaning', v: x => esc(x.name)}, {t: 'Hours', num: true, v: x => num(x.hours)}])}
-          ${block('Hours by activity', r.byActivity, [{t: 'Activity', v: x => esc(x.name)}, {t: 'Hours', num: true, v: x => num(x.hours)}], `${num(r.hoursWithoutActivity)} hours have no activity recorded.`)}
+          ${block('Hours by allocation code', r.byCode, [{t: 'Code', v: x => esc(x.reference)}, {t: 'Meaning', v: x => esc(x.name)}, {t: 'Hours', num: true, v: x => num2(x.hours)}])}
+          ${block('Hours by activity', r.byActivity, [{t: 'Activity', v: x => esc(x.name)}, {t: 'Hours', num: true, v: x => num2(x.hours)}], `${num2(r.hoursWithoutActivity)} hours have no activity recorded.`)}
         </div>
         ${block('Expenses by category', r.byExpenseCategory, [{t: 'Reference', v: x => esc(x.reference)}, {t: 'Category', v: x => esc(x.name)}, {t: 'Gross', num: true, v: x => money2(x.expenses)},
-          {t: 'VAT', num: true, v: x => money2(x.vat)}, {t: 'Net', num: true, v: x => money2(x.net)}, {t: 'Miles', num: true, v: x => num(x.miles), phone: false}])}
+          {t: 'VAT', num: true, v: x => money2(x.vat)}, {t: 'Net', num: true, v: x => money2(x.net)}, {t: 'Miles', num: true, v: x => num2(x.miles), phone: false}])}
         ${block('By approval status', r.byStatus, [{t: 'Status', v: x => esc(TS_STATUS[x.name] || x.name)}, ...amounts])}`;
     }
     return `<h2>Timesheet report</h2>
