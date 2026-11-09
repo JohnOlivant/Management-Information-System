@@ -60,7 +60,7 @@ test('someone sees only the firms their MIS access names', async t => {
   assert.equal(r.status, 200);
   const body = await r.json();
   assert.equal(body.pipeline.count, 4);
-  assert.deepEqual(Object.keys(body).sort(), ['fixes', 'have', 'hours', 'orderBook', 'pipeline', 'problems', 'today']);
+  assert.deepEqual(Object.keys(body).sort(), ['capacity', 'fixes', 'have', 'hours', 'hoursWent', 'orderBook', 'pipeline', 'problems', 'today', 'winRate']);
   await get('/api/reports?firm=a', 'owner');
   assert.deepEqual(reads, ['a'], 'answers are cached for a minute');
 });

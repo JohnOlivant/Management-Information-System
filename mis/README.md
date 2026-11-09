@@ -5,8 +5,11 @@ The first MIS reports, built from the data Quoting, Scheduling and Timesheets al
 | Tab | What it shows | From |
 | --- | --- | --- |
 | Quote pipeline | Open quotes by month sent, customer, lead source and job type; quotes running out in the next 14 days | Quoting |
+| Win rate | Quotes first sent in the last 12 months that were won, declined or ran out, by month, lead source, job type and customer; typical time to an answer | Quoting |
 | Order book and cash in | Won jobs not yet complete and the money expected each month from their payment stages | Quoting |
+| Crew capacity | Crew hours available (8 a day, Monday to Friday, less time away) against hours booked, this week and the next seven; jobs short of crew; each worker week by week | Scheduling |
 | Hours by job | Quoted, planned and booked hours per job; jobs past 80% of plan or over it | Scheduling, Timesheets |
+| Where the hours went | The last 12 weeks of timesheet hours split between customer jobs, internal work and leave, by week, job and worker | Timesheets |
 | Timesheet report | The Timesheets app's own report for the whole firm: hours, subsistence, expenses and mileage by worker, job, code, activity, expense category and approval status, with its CSV downloads | Timesheets |
 | Things to fix | Won jobs with no payment stages or not in Scheduling, jobs with no planned hours, timesheet hours on unknown job numbers | All three |
 

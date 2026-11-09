@@ -9,7 +9,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {Pool} = require('pg');
-const {quotes, jobs, booked, firmData} = require('../src/sources');
+const {quotes, jobs, booked, crew, worked, firmData} = require('../src/sources');
 const {allReports} = require('../src/reports');
 const tsReport = require('../src/timesheet-report');
 
@@ -57,12 +57,16 @@ async function seedScheduling() {
   const db = admin(env.SCHEDULING_DB);
   try {
     await db.query('TRUNCATE standalone.clients CASCADE');
-    await db.query('TRUNCATE scheduling.job_plans, scheduling.handovers CASCADE');
+    await db.query('TRUNCATE scheduling.job_plans, scheduling.handovers, scheduling.unavailability CASCADE');
     await db.query(`INSERT INTO standalone.clients (id, name) VALUES ($1,'A'), ($2,'B')`, [A, B]);
     const job = (await db.query(`INSERT INTO standalone.jobs (client_id, legacy_id, name, kind) VALUES ($1,'Q00002','Job Q00002','customer') RETURNING id`, [A])).rows[0].id;
     const jobB = (await db.query(`INSERT INTO standalone.jobs (client_id, legacy_id, name, kind) VALUES ($1,'Q00009','Other firm','customer') RETURNING id`, [B])).rows[0].id;
     await db.query(`INSERT INTO scheduling.job_plans (job_id, client_id, starts_at, ends_at, planned_minutes, status)
       VALUES ($1,$2,'2026-11-01T08:00:00Z','2026-11-30T17:00:00Z', 6000, 'scheduled'), ($3,$4,'2026-11-01T08:00:00Z','2026-11-30T17:00:00Z', 60, 'scheduled')`, [job, A, jobB, B]);
+    const w = (await db.query(`INSERT INTO standalone.workers (client_id, legacy_id, first_name, last_name, email, job_title) VALUES ($1,'W1','Al','Smith','al@x.co','Joiner') RETURNING id`, [A])).rows[0].id;
+    await db.query(`INSERT INTO standalone.workers (client_id, legacy_id, first_name, last_name, active) VALUES ($1,'W2','Old','Hand', false)`, [A]);
+    await db.query(`INSERT INTO scheduling.assignments (client_id, job_id, worker_id, starts_at, ends_at, assigned_by) VALUES ($1,$2,$3,'2026-11-01T08:00:00Z','2026-11-30T16:00:00Z',$3)`, [A, job, w]);
+    await db.query(`INSERT INTO scheduling.unavailability (client_id, worker_id, kind, date_from, date_to, note, created_by) VALUES ($1,$2,'holiday','2026-11-16','2026-11-17','private note',$2)`, [A, w]);
     await db.query(`INSERT INTO scheduling.handovers (client_id, quoting_estimate_id, key, checksum, reference, title, content, status, job_id)
       VALUES ($1, gen_random_uuid(), 'k1', repeat('a',64), 'Q00002', 'Job', '{"totals":{"manHours":"95.5"}}', 'confirmed', $2)`, [A, job]);
   } finally { await db.end(); }
@@ -85,7 +89,15 @@ async function seedTimesheets() {
         const s = (await db.query(`INSERT INTO timesheet.submissions (client_id, worker_id, period_id, status) VALUES ($1,$2,$3,$4) RETURNING id`, [c, w, per, status])).rows[0].id;
         await db.query(`INSERT INTO timesheet.time_entries (client_id, submission_id, job_id, code_id, work_date, hours) VALUES ($1,$2,$3,$4,$5,$6)`,
           [c, s, j, code, `2026-10-${String(n * 7).padStart(2, '0')}`, c === A ? hours : 20]);
+        if (n === 1) {
+          const leave = (await db.query(`INSERT INTO timesheet.leave_requests (client_id, worker_id, kind, date_from, date_to, note, status) VALUES ($1,$2,'sickness','2026-10-08','2026-10-08','private','approved') RETURNING id`, [c, w])).rows[0].id;
+          const hol = (await db.query(`INSERT INTO timesheet.jobs (client_id, legacy_id, name, kind) VALUES ($1,'LEAVE','Leave','internal') RETURNING id`, [c])).rows[0].id;
+          await db.query(`INSERT INTO timesheet.time_entries (client_id, submission_id, job_id, code_id, work_date, hours, source_leave_id) VALUES ($1,$2,$3,$4,'2026-10-08',8,$5)`, [c, s, hol, code, leave]);
+        }
       }
+      const draft = (await db.query(`INSERT INTO timesheet.pay_periods (client_id, date_from, date_to, label) VALUES ($1, '2026-11-02', '2026-11-08', 'wk') RETURNING id`, [c])).rows[0].id;
+      const ds = (await db.query(`INSERT INTO timesheet.submissions (client_id, worker_id, period_id, status) VALUES ($1,$2,$3,'draft') RETURNING id`, [c, w, draft])).rows[0].id;
+      await db.query(`INSERT INTO timesheet.time_entries (client_id, submission_id, job_id, code_id, work_date, hours) VALUES ($1,$2,$3,$4,'2026-11-03',5)`, [c, ds, j, code]);
     }
   } finally { await db.end(); }
 }
@@ -109,26 +121,45 @@ test('reads each app as the reader role, one firm only', {skip: !ready && 'set A
 
     const b = await booked(p.timesheets, A);
     assert.equal(b.length, 1);
-    assert.equal(b[0].approved, 8); assert.equal(b[0].pending, 3);
+    assert.equal(b[0].approved, 8); assert.equal(b[0].pending, 8, 'submitted and draft');
 
-    const d = await firmData(p, {id: 'a', name: 'A', quoting: A, scheduling: A, timesheets: A});
+    const c = await crew(p.scheduling, A, '2026-11-09', '2027-01-04');
+    assert.deepEqual(c.workers, [{id: c.workers[0].id, name: 'Al Smith', jobTitle: 'Joiner'}], 'active workers only');
+    assert.deepEqual(c.assignments.map(a => [a.jobNumber, a.start, a.end]), [['Q00002', '2026-11-01T08:00', '2026-11-30T16:00']]);
+    assert.deepEqual(c.away.map(a => [a.kind, a.from, a.to]), [['holiday', '2026-11-16', '2026-11-17']]);
+    assert.deepEqual(c.plans.map(x => [x.jobNumber, x.crew, x.minCrew]), [['Q00002', 1, 1]]);
+    await assert.rejects(p.scheduling.query(`SELECT note FROM scheduling.unavailability`), /permission denied/);
+    await assert.rejects(p.scheduling.query(`SELECT email FROM integration.workers_v1`), /permission denied/);
+
+    const wk = await worked(p.timesheets, A, '2026-09-01', '2026-11-09');
+    assert.deepEqual(wk.map(r => [r.week, r.kind, r.hours]).sort(), [['2026-10-05', 'customer', 8], ['2026-10-05', 'sickness', 8], ['2026-10-12', 'customer', 3]], 'leave by kind; drafts left out');
+    await assert.rejects(p.timesheets.query(`SELECT note FROM timesheet.leave_requests`), /permission denied/);
+
+    const d = await firmData(p, {id: 'a', name: 'A', quoting: A, scheduling: A, timesheets: A}, '2026-11-09');
     assert.deepEqual(d.problems, []);
     const r = allReports(d, '2026-11-09');
     assert.equal(r.pipeline.count, 1);
     assert.equal(r.orderBook.value, 5100);
     assert.deepEqual(r.orderBook.cashIn.slice(1, 3).map(m => m.value), [1020, 4080]);
-    assert.equal(r.hours.jobs[0].usedShare, 11);
+    assert.equal(r.hours.jobs[0].usedShare, 16);
     assert.deepEqual(r.fixes, []);
+    assert.equal(r.capacity.crew, 1);
+    assert.equal(r.capacity.weeks[0].booked, 5 * 8, 'Monday to Friday this week, 08:00 to 16:00');
+    assert.equal(r.capacity.weeks[1].available, 24, 'two days holiday');
+    assert.equal(r.capacity.workers[0].clashes, 2);
+    assert.equal(r.winRate.won, 1);
+    assert.equal(r.hoursWent.customer, 11);
+    assert.equal(r.hoursWent.sickness, 8);
 
     // The Timesheet report reads the same lines as Timesheets does, for this firm only.
     const ref = await tsReport.reference(p.timesheets, A);
-    assert.equal(ref.workers.length, 1); assert.equal(ref.jobs.length, 1); assert.equal(ref.periods.length, 2);
+    assert.equal(ref.workers.length, 1); assert.equal(ref.jobs.length, 2); assert.equal(ref.periods.length, 3);
     const f = tsReport.filters(new URLSearchParams({from: '2026-10-01', to: '2026-10-31'}));
     const rep = tsReport.build(await tsReport.lines(p.timesheets, A, f), f, A);
-    assert.equal(rep.totals.hours, 11);
+    assert.equal(rep.totals.hours, 19, 'eleven on the job and eight of sickness');
     assert.equal(rep.byJob[0].reference, 'Q00002');
     const approved = tsReport.build(await tsReport.lines(p.timesheets, A, {...f, approval: 'approved'}), f, A);
-    assert.equal(approved.totals.hours, 8);
+    assert.equal(approved.totals.hours, 16);
     assert.match(tsReport.csv(rep, 'jobs'), /Q00002/);
 
     // The reader cannot write.
