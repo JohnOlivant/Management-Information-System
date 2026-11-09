@@ -76,6 +76,14 @@ td small { display: block; color: var(--muted); }
 .meter span { position: absolute; inset: 0 auto 0 0; background: var(--bar); }
 .meter.over span { background: var(--danger); }
 
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; align-items: end;
+  background: var(--raised); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+.filters label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.filters input, .filters select { font: inherit; font-size: 15px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+.filters button { font: inherit; font-weight: 650; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px 16px; cursor: pointer; }
+.filters button:disabled { opacity: .6; cursor: default; }
+.downloads { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 16px 0 0; font-size: 14px; }
+.downloads a { font-weight: 600; }
 .note { margin: 16px 0; padding: 11px 14px; border-radius: 8px; background: var(--warn-bg); color: var(--warn-ink); font-size: 14px; }
 .foot { max-width: 1180px; margin: 0 auto; padding: 0 24px 32px; font-size: 13px; }
 

@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {allReports} = require('./reports');
+const ts = require('./timesheet-report');
 
 const PUBLIC = path.join(__dirname, '..', 'public');
 const FILES = {'/': ['index.html', 'text/html; charset=utf-8'], '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
@@ -44,9 +45,10 @@ function appLinks(misOrigin, override = '') {
 
 /**
  * auth(req) -> {email, displayName, access: [{tenantId, tenantName, role}]} or null
+ * timesheet: {reference(firm), lines(firm, filters)} reads the Timesheets report, or null for a firm with no Timesheets
  * apps: [{id, name, mark, url}] the other apps, linked from the top bar; firms() -> Map(id -> firm); data(firm) -> the firm's data (sources.firmData or the demo); today() -> 'YYYY-MM-DD'
  */
-function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl, firms, data, today, cacheSeconds = 60, log = console}) {
+function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl, firms, data, timesheet, today, cacheSeconds = 60, log = console}) {
   const cache = new Map();
 
   const send = (res, status, body, type = 'application/json; charset=utf-8', extra = {}) => {
@@ -102,8 +104,27 @@ function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl,
         return send(res, 200, await reportsFor(firms().get(id)));
       }
 
+      // The Timesheets report, for the whole firm. JSON without the line detail, or one of its CSV files.
+      if (route === '/api/timesheet-report' || route === '/api/timesheet-report/reference') {
+        const id = url.searchParams.get('firm') || '';
+        if (!myFirms(session).some(f => f.id === id)) return send(res, 404, {error: 'You do not have that firm.'});
+        const firm = firms().get(id);
+        if (!timesheet || !firm.timesheets) return send(res, 404, {error: 'Timesheets is not linked for this firm.'});
+        if (route.endsWith('/reference')) return send(res, 200, await timesheet.reference(firm));
+        const f = ts.filters(url.searchParams);
+        const report = ts.build(await timesheet.lines(firm, f), f, firm.timesheets);
+        if (url.searchParams.get('format') === 'csv') {
+          const view = url.searchParams.get('view') || 'detail';
+          return send(res, 200, ts.csv(report, view), 'text/csv; charset=utf-8',
+            {'Content-Disposition': `attachment; filename="timesheet-report-${view}-${f.from}-${f.to}.csv"`});
+        }
+        const {details, ...summary} = report;
+        return send(res, 200, summary);
+      }
+
       return send(res, 404, {error: 'Not found.'});
     } catch (e) {
+      if (e instanceof ts.HttpError) return send(res, e.status, {error: e.message});
       log.error(e);
       return send(res, 500, {error: 'Something went wrong. Try again in a moment.'});
     }

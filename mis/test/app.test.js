@@ -6,9 +6,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {createApp, loadFirms, appLinks} = require('../src/app');
-const {demoData} = require('../src/demo');
+const {demoData, demoTimesheet} = require('../src/demo');
 
-const firms = new Map([['a', {id: 'a', name: 'Firm A'}], ['b', {id: 'b', name: 'Firm B'}]]);
+const firms = new Map([['a', {id: 'a', name: 'Firm A', timesheets: '00000000-0000-4000-8000-000000000001'}], ['b', {id: 'b', name: 'Firm B'}]]);
 const sessions = {
   owner: {email: 'o@a.co', displayName: 'Owner', access: [{tenantId: 'a'}, {tenantId: 'gone'}]},
   fresh: {email: 'n@a.co', displayName: 'New', mustChangePassword: true, access: [{tenantId: 'a'}]},
@@ -21,7 +21,7 @@ async function serve(t) {
     auth: async req => sessions[req.headers['x-test-user']] || null,
     signInUrl: r => `https://signin.example.co.uk/?app=mis&return=${encodeURIComponent(r)}`,
     signOutUrl: () => 'https://signin.example.co.uk/signout?app=mis', passwordUrl: () => 'https://signin.example.co.uk/password?app=mis',
-    firms: () => firms, data: async f => { reads.push(f.id); return demoData('2026-11-09'); }, today: () => '2026-11-09',
+    firms: () => firms, timesheet: demoTimesheet(() => '2026-11-09'), data: async f => { reads.push(f.id); return demoData('2026-11-09'); }, today: () => '2026-11-09',
     log: {error() {}},
   });
   const server = http.createServer(app).listen(0, '127.0.0.1');
@@ -85,4 +85,21 @@ test('the top bar links to the other apps under the same domain', () => {
   assert.deepEqual(appLinks('https://management.rule29.co.uk').map(a => [a.name, a.url]), [
     ['Quoting', 'https://quoting.rule29.co.uk/'], ['Scheduling', 'https://scheduling.rule29.co.uk/'], ['Timesheets', 'https://timesheets.rule29.co.uk/']]);
   assert.equal(appLinks('https://management.rule29.co.uk', 'quoting=https://q.example.com/').find(a => a.id === 'quoting').url, 'https://q.example.com/');
+});
+
+test('the Timesheet report: JSON summary, CSV files and checked filters', async t => {
+  const {get} = await serve(t);
+  const q = 'firm=a&from=2026-10-12&to=2026-11-08';
+  const r = await (await get('/api/timesheet-report?' + q, 'owner')).json();
+  assert.ok(r.totals.hours > 0);
+  assert.equal(r.details, undefined, 'line detail only goes in the CSV');
+  assert.equal(r.byWorker.length, 4);
+  const csv = await get('/api/timesheet-report?' + q + '&format=csv&view=workers', 'owner');
+  assert.equal(csv.status, 200);
+  assert.match(csv.headers.get('content-disposition'), /timesheet-report-workers-2026-10-12-2026-11-08\.csv/);
+  assert.match(await csv.text(), /Sam Archer/);
+  assert.equal((await get('/api/timesheet-report?firm=a&from=2026-11-08&to=2026-10-01', 'owner')).status, 400);
+  assert.equal((await get('/api/timesheet-report?' + q.replace('firm=a', 'firm=b'), 'owner')).status, 404);
+  const ref = await (await get('/api/timesheet-report/reference?firm=a', 'owner')).json();
+  assert.equal(ref.workers.length, 4);
 });
