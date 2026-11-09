@@ -48,7 +48,7 @@ function appLinks(misOrigin, override = '') {
  * timesheet: {reference(firm), lines(firm, filters)} reads the Timesheets report, or null for a firm with no Timesheets
  * apps: [{id, name, mark, url}] the other apps, linked from the top bar; firms() -> Map(id -> firm); data(firm) -> the firm's data (sources.firmData or the demo); today() -> 'YYYY-MM-DD'
  */
-function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl, firms, data, timesheet, today, cacheSeconds = 60, log = console}) {
+function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl, appsUrl = () => null, firms, data, timesheet, today, cacheSeconds = 60, log = console}) {
   const cache = new Map();
 
   const send = (res, status, body, type = 'application/json; charset=utf-8', extra = {}) => {
@@ -95,7 +95,7 @@ function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl,
 
       if (route === '/api/me') {
         return send(res, 200, {name: session.displayName || session.email, email: session.email, firms: myFirms(session),
-          signOut: signOutUrl(here), password: passwordUrl(here), apps});
+          signOut: signOutUrl(here), password: passwordUrl(here), home: appsUrl(), apps});
       }
 
       if (route === '/api/reports') {

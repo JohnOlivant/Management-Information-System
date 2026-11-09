@@ -211,6 +211,8 @@
     try { me = await get('/api/me'); } catch (e) { $('#main').innerHTML = `<p class="note">${esc(e.message)}</p>`; return; }
     $('#name').textContent = me.name;
     $('#signout').href = me.signOut; $('#password').href = me.password;
+    // Back to the sign-in page's list of every app, in this tab.
+    if (me.home) { $('#home').href = me.home; $('#home').hidden = false; }
     // Each app opens in its own tab, so figures can be checked side by side.
     $('#apps').innerHTML = (me.apps || []).map(a => `<a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.name)}</a>`).join('');
     if (!me.firms.length) {

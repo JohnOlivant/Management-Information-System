@@ -25,7 +25,7 @@ if (env.SIGNIN_URL && env.SIGNIN_KEY) {
     origin: env.MIS_ORIGIN ? new URL(env.MIS_ORIGIN).origin : undefined,
     apps: appLinks(env.MIS_ORIGIN),
     auth: req => signin.authenticate(req),
-    signInUrl: signin.signInUrl, signOutUrl: signin.signOutUrl, passwordUrl: signin.passwordUrl,
+    signInUrl: signin.signInUrl, signOutUrl: signin.signOutUrl, passwordUrl: signin.passwordUrl, appsUrl: signin.appsUrl,
     // firms.json is read again at most once a minute, so a new firm shows without a restart.
     firms: () => {
       if (Date.now() - loaded > 60000) { try { firms = loadFirms(firmsFile); } catch (e) { console.error(e.message); } loaded = Date.now(); }
@@ -42,7 +42,7 @@ if (env.SIGNIN_URL && env.SIGNIN_KEY) {
   app = createApp({
     apps: appLinks(null),
     auth: async () => ({email: 'owner@example.com', displayName: 'Demo owner', access: [{tenantId: 'demo', tenantName: demoFirm.name, role: ''}]}),
-    signInUrl: () => '/', signOutUrl: () => '/', passwordUrl: () => '/',
+    signInUrl: () => '/', signOutUrl: () => '/', passwordUrl: () => '/', appsUrl: () => '/',
     firms: () => new Map([['demo', demoFirm]]),
     data: async () => demoData(ukToday()),
     timesheet: demoTimesheet(ukToday),
