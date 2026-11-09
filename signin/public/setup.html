@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>People and apps</title>
+<link rel="stylesheet" href="/signin.css">
+<link rel="stylesheet" href="/setup.css">
+<script src="/setup.js" defer></script>
+</head>
+<body class="setup">
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="topbar-home" href="/"><span class="mark small-mark" id="suite-mark" aria-hidden="true">R29</span><span>People and apps</span></a>
+    <div class="topbar-who"><span id="who"></span> <a href="/" class="text-link">Your apps</a></div>
+  </div>
+</header>
+
+<main class="setup-main">
+  <div id="loading" class="card"><p class="muted">Loading…</p></div>
+
+  <section id="blocked" class="card" hidden>
+    <h1>People and apps</h1>
+    <p class="muted" id="blocked-text"></p>
+    <a class="button primary" id="blocked-link" href="/">Sign in</a>
+  </section>
+
+  <section id="list" hidden aria-labelledby="list-title">
+    <div class="list-head">
+      <div>
+        <h1 id="list-title">People and apps</h1>
+        <p class="muted">Choose who can open each app, for which firm, and with what role. Changes reach the apps within a minute.</p>
+      </div>
+      <button type="button" class="primary narrow" id="add-person">Add a person</button>
+    </div>
+    <div class="notice" id="list-notice" role="status" hidden></div>
+    <div class="filters">
+      <label for="search" class="sr-only">Find a person</label>
+      <input id="search" type="search" placeholder="Find by name or email" autocomplete="off">
+      <label for="app-filter" class="sr-only">Show people with access to</label>
+      <select id="app-filter"><option value="">Every app</option></select>
+    </div>
+    <ul class="people" id="people"></ul>
+    <p class="muted" id="people-empty" hidden>Nobody matches.</p>
+  </section>
+</main>
+
+<dialog id="new-dialog" aria-labelledby="new-title">
+  <form id="new-form" method="dialog" novalidate>
+    <h2 id="new-title">Add a person</h2>
+    <p class="muted">They sign in with this email and a temporary password, which they change the first time. You choose their apps next.</p>
+    <label for="new-email">Email</label>
+    <input id="new-email" type="email" autocomplete="off" required>
+    <label for="new-name">Name</label>
+    <input id="new-name" type="text" autocomplete="off" maxlength="120">
+    <label for="new-password">Temporary password</label>
+    <div class="password-row">
+      <input id="new-password" type="text" autocomplete="off" required>
+      <button type="button" class="secondary" id="new-generate">Make one</button>
+    </div>
+    <p class="hint">Give it to them yourself, by phone or in person.</p>
+    <p class="error" role="alert" hidden></p>
+    <div class="row">
+      <button type="button" class="secondary" data-close>Cancel</button>
+      <button type="submit" class="primary narrow">Add and choose apps</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="person-dialog" aria-labelledby="person-title">
+  <div class="dialog-head">
+    <div>
+      <h2 id="person-title"></h2>
+      <p class="muted" id="person-email"></p>
+    </div>
+    <button type="button" class="secondary" data-close>Done</button>
+  </div>
+  <p class="notice" id="person-notice" role="status" hidden></p>
+
+  <form id="details-form" class="block" novalidate>
+    <h3>Login</h3>
+    <label for="person-name">Name</label>
+    <input id="person-name" type="text" maxlength="120" autocomplete="off">
+    <label class="check"><input type="checkbox" id="person-active"> Can sign in</label>
+    <label class="check"><input type="checkbox" id="person-admin"> Can use this setup page</label>
+    <p class="error" role="alert" hidden></p>
+    <button type="submit" class="secondary">Save login</button>
+  </form>
+
+  <div class="block">
+    <h3>Apps</h3>
+    <div id="person-apps"></div>
+  </div>
+
+  <form id="reset-form" class="block" novalidate>
+    <h3>Reset password</h3>
+    <p class="muted">Signs them out everywhere. They choose a new password the next time they sign in.</p>
+    <label for="reset-password">Temporary password</label>
+    <div class="password-row">
+      <input id="reset-password" type="text" autocomplete="off">
+      <button type="button" class="secondary" id="reset-generate">Make one</button>
+    </div>
+    <p class="error" role="alert" hidden></p>
+    <button type="submit" class="secondary">Reset password</button>
+  </form>
+</dialog>
+</body>
+</html>

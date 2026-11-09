@@ -1,0 +1,74 @@
+/* The setup page. Builds on signin.css (colours, inputs, buttons). */
+body.setup { --accent: #16222c; --accent-ink: #f8f9f5; }
+@media (prefers-color-scheme: dark) { body.setup { --accent: #e8ebe5; --accent-ink: #12191f; } }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.topbar { background: #16222c; color: #f8f9f5; }
+.topbar-inner { max-width: 1080px; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.topbar-home { display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; font-weight: 700; }
+.small-mark { min-width: 36px; height: 36px; font-size: 12px; border-radius: 9px; background: #f8f9f5; color: #16222c; padding: 0 6px; }
+.topbar-who { font-size: 14px; display: flex; gap: 14px; align-items: center; }
+.topbar .text-link { color: #f8f9f5; }
+
+.setup-main { max-width: 1080px; margin: 0 auto; padding: 28px 24px 48px; }
+.setup-main > .card { margin: 40px auto; }
+.list-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.list-head .muted { margin-bottom: 16px; max-width: 60ch; }
+.primary.narrow { width: auto; margin-top: 0; }
+.filters { display: flex; gap: 10px; margin: 8px 0 16px; flex-wrap: wrap; }
+.filters input { flex: 1 1 260px; width: auto; }
+select { font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--field); border-radius: 8px; background: var(--paper); color: var(--ink); max-width: 100%; }
+.filters select { flex: 0 1 220px; }
+
+.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.person-open { width: 100%; display: grid; grid-template-columns: minmax(180px, 2fr) 5fr auto; gap: 16px; align-items: center; text-align: left;
+  background: var(--raised); color: var(--ink); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; font-weight: 400; }
+.person-open:hover { border-color: var(--ink); }
+.person.inactive .person-open { opacity: .7; }
+.person-who { display: flex; flex-direction: column; min-width: 0; }
+.person-who strong, .person-who small { overflow-wrap: anywhere; }
+.person-who small { color: var(--muted); font-size: 13px; }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.tag { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--ok-bg); color: var(--ok-ink); }
+.tag.off { background: var(--danger-bg); color: var(--danger); }
+.chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 10px 4px 4px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper); }
+.chip-mark { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 4px; border-radius: 6px; font-size: 11px; font-weight: 800; }
+.none { font-size: 13px; margin: 0; }
+.person-edit { font-size: 14px; font-weight: 650; text-decoration: underline; }
+
+dialog { width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); border: 1px solid var(--line); border-radius: 14px;
+  background: var(--raised); color: var(--ink); padding: 24px; }
+dialog::backdrop { background: rgba(10, 16, 20, .55); }
+dialog h2 { font-size: 21px; margin: 0 0 4px; }
+dialog .muted { margin-bottom: 8px; }
+.dialog-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.dialog-head .muted { overflow-wrap: anywhere; }
+.block { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 14px; }
+.block h3 { font-size: 16px; margin: 0 0 4px; }
+.block > button, .access button[type=submit] { margin-top: 14px; }
+.check { display: flex; align-items: center; gap: 10px; color: var(--ink); font-weight: 500; font-size: 15px; margin: 12px 0 0; }
+.check input { width: 20px; height: 20px; margin: 0; accent-color: var(--ink); }
+.app-block { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.app-block h4 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; }
+.app-block h4 small { color: var(--muted); font-weight: 500; margin-left: auto; }
+.access { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 10px; }
+.access.add { border-top: 0; margin-top: 4px; }
+.access-firm { margin: 0; }
+.access-firm small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+.access select { width: 100%; }
+.roles { border: 0; padding: 0; margin: 10px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 12px; }
+.roles legend { font-size: 13px; font-weight: 650; color: var(--muted); padding: 0; }
+.roles .check { margin-top: 8px; }
+.row.tight { margin-top: 0; }
+.danger-link { background: transparent; color: var(--danger); border: 0; padding: 10px 0; text-decoration: underline; margin-top: 14px; }
+.add-wrap { margin-top: 10px; }
+.add-wrap summary { cursor: pointer; font-weight: 600; font-size: 14px; padding: 6px 0; }
+.app-block input, .app-block select { background: var(--raised); }
+
+@media (max-width: 760px) {
+  .topbar-inner, .setup-main { padding-left: 16px; padding-right: 16px; }
+  .person-open { grid-template-columns: 1fr; gap: 10px; }
+  .person-edit { display: none; }
+  dialog { padding: 18px 16px; }
+}

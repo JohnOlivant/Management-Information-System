@@ -45,7 +45,7 @@ function pgStore(pool) {
       `INSERT INTO identity.sessions (token_hash, account_id, csrf_token, expires_at)
        VALUES ($1, $2, $3, now() + make_interval(hours => $4))`, [tokenHash, accountId, csrf, hours]),
     session: tokenHash => one(
-      `SELECT s.token_hash, s.account_id, s.csrf_token, s.expires_at, a.email, a.display_name, a.must_change_password
+      `SELECT s.token_hash, s.account_id, s.csrf_token, s.expires_at, a.email, a.display_name, a.must_change_password, a.setup_admin
          FROM identity.sessions s JOIN identity.accounts a ON a.id = s.account_id
         WHERE s.token_hash=$1 AND s.expires_at > now() AND a.active`, [tokenHash]),
     deleteSession: tokenHash => pool.query('DELETE FROM identity.sessions WHERE token_hash=$1', [tokenHash]),
@@ -59,6 +59,20 @@ function pgStore(pool) {
     createAccount: async ({email, displayName = '', passwordHash, mustChangePassword = true}) => one(
       `INSERT INTO identity.accounts (email, display_name, password_hash, must_change_password) VALUES ($1,$2,$3,$4)
        RETURNING *`, [email, displayName, passwordHash, mustChangePassword]),
+
+    // The setup page.
+    accountByIdAnyState: id => one('SELECT * FROM identity.accounts WHERE id=$1', [id]),
+    updateAccount: ({id, displayName, active, setupAdmin}) => pool.query(
+      'UPDATE identity.accounts SET display_name=$2, active=$3, setup_admin=$4 WHERE id=$1', [id, displayName, active, setupAdmin]),
+    people: async () => (await pool.query(
+      `SELECT a.id, a.email, a.display_name, a.active, a.setup_admin, a.must_change_password,
+              coalesce(json_agg(json_build_object('app', x.app, 'tenant_id', x.tenant_id, 'tenant_name', x.tenant_name, 'role', x.role)
+                ORDER BY x.app, x.tenant_name) FILTER (WHERE x.app IS NOT NULL), '[]') AS access
+         FROM identity.accounts a LEFT JOIN identity.app_access x ON x.account_id = a.id
+        GROUP BY a.id ORDER BY a.email`)).rows,
+    firms: async () => (await pool.query(
+      `SELECT app, tenant_id, max(tenant_name) AS tenant_name FROM identity.app_access
+        GROUP BY app, tenant_id ORDER BY app, max(tenant_name)`)).rows,
     grantAccess: ({accountId, app, tenantId, tenantName = '', role = ''}) => pool.query(
       `INSERT INTO identity.app_access (account_id, app, tenant_id, tenant_name, role) VALUES ($1,$2,$3,$4,$5)
        ON CONFLICT (account_id, app, tenant_id) DO UPDATE SET tenant_name=EXCLUDED.tenant_name, role=EXCLUDED.role`,

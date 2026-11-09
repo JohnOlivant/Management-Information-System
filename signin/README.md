@@ -18,7 +18,7 @@ Try `http://localhost:3900/?app=quoting`, `?app=scheduling`, `?app=timesheets` o
 
 | Demo account | Opens |
 | --- | --- |
-| `owner@example.com` | Every app |
+| `owner@example.com` | Every app, and the setup page at http://localhost:3900/setup |
 | `crew@example.com` | Timesheets only |
 | `new@example.com` | Quoting, and must change the temporary password first |
 
@@ -29,7 +29,7 @@ npm test                                                             # behaviour
 TEST_DATABASE_URL=postgresql://postgres@localhost/signin_test npm run test:integration   # the same tests on PostgreSQL
 ```
 
-The PostgreSQL run applies `db/001-identity.sql` to a fresh schema for each test and runs the service as the narrow `rule29_signin_app` role, so the grants are tested too.
+The PostgreSQL run applies every file in `db/` to a fresh schema for each test and runs the service as the narrow `rule29_signin_app` role, so the grants are tested too.
 
 ## Pages
 
@@ -39,6 +39,7 @@ The PostgreSQL run applies `db/001-identity.sql` to a fresh schema for each test
 | `/` | Sign in, then choose an app |
 | `/password` | Change password (every app) |
 | `/signout?app=<id>` | Sign out of every app |
+| `/setup` | People and apps: for setup administrators only (see below) |
 
 A temporary password must be changed before any app opens. Forgotten passwords are reset by the firm's administrator, as on the live quoting system; there is no self-service reset email until an email provider is chosen.
 
@@ -56,13 +57,30 @@ A temporary password must be changed before any app opens. Forgotten passwords a
 
 `apps.json` holds each app's name, tagline, mark (up to three letters), colour and home address. A new app is one more entry and one more key.
 
+## People and apps (the setup page)
+
+`/setup` is where an administrator chooses who can open each app, at which firm, and with what role. It lists every login with its apps; **Change** opens one person, where you can rename them, switch their login off, let them use the setup page, give or take away each app at each firm with its role, and reset their password. **Add a person** makes a login with a temporary password they change at first sign-in. The launcher shows a **People and apps** link to anyone allowed to use it.
+
+The sign-in is where roles live. Each app reads the role from the session it checks (`session.access[].role`) and follows it: Scheduling always has; Timesheets and Quoting copy it into their own records when the person opens them. Each app's roles are listed in `src/apps.js` (an apps file entry can give its own `roles` and `multipleRoles`):
+
+| App | Roles | Several at once |
+| --- | --- | --- |
+| Management Information | `admin`, `viewer` | No |
+| Quoting | `estimator`, `approver`, `rate_admin`, `accounts`, `operations`, `admin` | Yes, stored as a comma-separated list |
+| Scheduling | `scheduler`, `admin` | No |
+| Timesheets | `worker`, `supervisor`, `payroll`, `admin` | No |
+
+Firms are listed per app from the access that already exists; a new one is added by typing the id that app uses for it (`company_id` in Quoting, `client_id` in Timesheets and Scheduling). Taking access away, or switching a login off, signs the person out everywhere; a role change reaches the apps within 30 seconds.
+
+Only accounts with `setup_admin` can open it, and nobody can switch off their own login or setup access. The first setup administrator is set on the server (see [deploy/RUNBOOK.md](deploy/RUNBOOK.md)).
+
 ## Accounts
 
 ```sh
 DATABASE_URL=... node scripts/add-account.js jo@firm.co.uk "Jo Bloggs" quoting:<company_id>:estimator timesheets:<client_id>:worker
 ```
 
-prints a temporary password. Each grant is `app:tenantId[:role[:firm name]]`, where `tenantId` is the id that app already uses for the firm (`company_id` in quoting, `client_id` in the timesheet and scheduler). Roles stay with each app; the sign-in only passes them on.
+prints a temporary password. Each grant is `app:tenantId[:role[:firm name]]`, where `tenantId` is the id that app already uses for the firm (`company_id` in quoting, `client_id` in the timesheet and scheduler). The setup page does the same without a command line.
 
 ## Using it from an app
 

@@ -1,7 +1,7 @@
 'use strict';
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {validateApps, safeReturn} = require('../src/apps');
+const {validateApps, safeReturn, normaliseRole} = require('../src/apps');
 const base = {id: 'quoting', name: 'Quoting', tagline: 'x', mark: 'Q', accent: '#000000', accentInk: '#ffffff', homeUrl: 'https://quoting.firm.test/'};
 
 test('the shipped apps file lists the four apps', () => {
@@ -24,4 +24,25 @@ test('return addresses must belong to the app', () => {
   assert.equal(safeReturn(app, 'https://quoting.firm.test.evil.example/'), null);
   assert.equal(safeReturn(app, '/relative'), null);
   assert.equal(safeReturn(null, 'https://quoting.firm.test/'), null);
+});
+
+test('each app gets its roles from the apps file, or the built-in list when the file has none', () => {
+  const cfg = validateApps(require('../apps.json'));
+  const roles = Object.fromEntries(cfg.apps.map(a => [a.id, a.roles.map(r => r.id).join(' ')]));
+  assert.deepEqual(roles, {mis: 'admin viewer', quoting: 'estimator approver rate_admin accounts operations admin',
+    scheduling: 'scheduler admin', timesheets: 'worker supervisor payroll admin'});
+  assert.deepEqual(cfg.apps.filter(a => a.multipleRoles).map(a => a.id), ['quoting']);
+  const own = validateApps({apps: [{...base, roles: [{id: 'sales', name: 'Sales'}], multipleRoles: false}]}).apps[0];
+  assert.deepEqual([own.roles, own.multipleRoles], [[{id: 'sales', name: 'Sales'}], false]);
+  assert.throws(() => validateApps({apps: [{...base, roles: [{id: 'Bad Id', name: 'x'}]}]}), /role/);
+});
+
+test('roles chosen on the setup page are checked and stored in the app\'s order', () => {
+  const [, quoting, , timesheets] = validateApps(require('../apps.json')).apps;
+  assert.equal(normaliseRole(timesheets, 'admin'), 'admin');
+  assert.match(normaliseRole(timesheets, 'admin,payroll').error, /one role/);
+  assert.match(normaliseRole(timesheets, 'owner').error, /no role "owner"/);
+  assert.match(normaliseRole(timesheets, '').error, /Choose a role/);
+  assert.equal(normaliseRole(quoting, ['admin', 'estimator', 'admin']), 'estimator,admin');
+  assert.equal(normaliseRole(quoting, 'approver, estimator'), 'estimator,approver');
 });
