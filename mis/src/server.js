@@ -3,13 +3,15 @@
 // without them it runs the demo (made-up data, no sign-in), which is refused in production.
 const http = require('node:http');
 const path = require('node:path');
-const {createApp, loadFirms} = require('./app');
+const {createApp, loadFirms, appLinks: links} = require('./app');
+const appLinks = origin => links(origin, process.env.APP_LINKS);
 const {pools, firmData, ukToday} = require('./sources');
 const {demoData} = require('./demo');
 
 const env = process.env;
 const port = Number(env.PORT || 3400), host = env.HOST || '127.0.0.1';
 let app;
+
 
 if (env.SIGNIN_URL && env.SIGNIN_KEY) {
   const {createSignInClient} = require(path.join(__dirname, '..', '..', 'signin', 'client'));
@@ -20,6 +22,7 @@ if (env.SIGNIN_URL && env.SIGNIN_KEY) {
   const p = pools(env, Pool);
   app = createApp({
     origin: env.MIS_ORIGIN ? new URL(env.MIS_ORIGIN).origin : undefined,
+    apps: appLinks(env.MIS_ORIGIN),
     auth: req => signin.authenticate(req),
     signInUrl: signin.signInUrl, signOutUrl: signin.signOutUrl, passwordUrl: signin.passwordUrl,
     // firms.json is read again at most once a minute, so a new firm shows without a restart.
@@ -35,6 +38,7 @@ if (env.SIGNIN_URL && env.SIGNIN_KEY) {
   if (env.NODE_ENV === 'production') { console.error('Set SIGNIN_URL and SIGNIN_KEY: the demo does not run in production.'); process.exit(1); }
   const demoFirm = {id: 'demo', name: 'Demo Builders Ltd'};
   app = createApp({
+    apps: appLinks(null),
     auth: async () => ({email: 'owner@example.com', displayName: 'Demo owner', access: [{tenantId: 'demo', tenantName: demoFirm.name, role: ''}]}),
     signInUrl: () => '/', signOutUrl: () => '/', passwordUrl: () => '/',
     firms: () => new Map([['demo', demoFirm]]),

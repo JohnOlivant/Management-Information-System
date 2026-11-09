@@ -5,7 +5,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const {createApp, loadFirms} = require('../src/app');
+const {createApp, loadFirms, appLinks} = require('../src/app');
 const {demoData} = require('../src/demo');
 
 const firms = new Map([['a', {id: 'a', name: 'Firm A'}], ['b', {id: 'b', name: 'Firm B'}]]);
@@ -79,4 +79,10 @@ test('firms.json is checked when read', () => {
   assert.equal(loadFirms(file).get('ss').name, 'S&S');
   fs.writeFileSync(file, JSON.stringify([{id: 'ss', name: 'S&S', quoting: 'not-an-id'}]));
   assert.throws(() => loadFirms(file), /quoting must be/);
+});
+
+test('the top bar links to the other apps under the same domain', () => {
+  assert.deepEqual(appLinks('https://management.rule29.co.uk').map(a => [a.name, a.url]), [
+    ['Quoting', 'https://quoting.rule29.co.uk/'], ['Scheduling', 'https://scheduling.rule29.co.uk/'], ['Timesheets', 'https://timesheets.rule29.co.uk/']]);
+  assert.equal(appLinks('https://management.rule29.co.uk', 'quoting=https://q.example.com/').find(a => a.id === 'quoting').url, 'https://q.example.com/');
 });

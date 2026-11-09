@@ -29,10 +29,24 @@ function loadFirms(file) {
 }
 
 /**
- * auth(req) -> {email, displayName, access: [{tenantId, tenantName, role}]} or null
- * firms() -> Map(id -> firm); data(firm) -> the firm's data (sources.firmData or the demo); today() -> 'YYYY-MM-DD'
+ * The other apps for the top bar, named as on the sign-in page. Each is at <app>.<the MIS's parent domain>
+ * (management.rule29.co.uk -> quoting.rule29.co.uk), or where `override` says: "quoting=https://...,timesheets=https://...".
  */
-function createApp({origin, auth, signInUrl, signOutUrl, passwordUrl, firms, data, today, cacheSeconds = 60, log = console}) {
+function appLinks(misOrigin, override = '') {
+  const listed = require(path.join(__dirname, '..', '..', 'signin', 'apps.json')).apps.filter(a => a.id !== 'mis');
+  const set = Object.fromEntries(override.split(',').map(x => x.trim().split('=')).filter(([k, v]) => k && v));
+  return listed.map(a => {
+    let url = set[a.id];
+    if (!url && misOrigin) { const u = new URL(misOrigin); u.hostname = u.hostname.replace(/^[^.]+/, a.id); url = u.origin + '/'; }
+    return {id: a.id, name: a.name, mark: a.mark, url: url || a.homeUrl};
+  });
+}
+
+/**
+ * auth(req) -> {email, displayName, access: [{tenantId, tenantName, role}]} or null
+ * apps: [{id, name, mark, url}] the other apps, linked from the top bar; firms() -> Map(id -> firm); data(firm) -> the firm's data (sources.firmData or the demo); today() -> 'YYYY-MM-DD'
+ */
+function createApp({origin, apps = [], auth, signInUrl, signOutUrl, passwordUrl, firms, data, today, cacheSeconds = 60, log = console}) {
   const cache = new Map();
 
   const send = (res, status, body, type = 'application/json; charset=utf-8', extra = {}) => {
@@ -79,7 +93,7 @@ function createApp({origin, auth, signInUrl, signOutUrl, passwordUrl, firms, dat
 
       if (route === '/api/me') {
         return send(res, 200, {name: session.displayName || session.email, email: session.email, firms: myFirms(session),
-          signOut: signOutUrl(here), password: passwordUrl(here)});
+          signOut: signOutUrl(here), password: passwordUrl(here), apps});
       }
 
       if (route === '/api/reports') {
@@ -96,4 +110,4 @@ function createApp({origin, auth, signInUrl, signOutUrl, passwordUrl, firms, dat
   };
 }
 
-module.exports = {createApp, loadFirms};
+module.exports = {createApp, loadFirms, appLinks};

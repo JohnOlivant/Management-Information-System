@@ -19,9 +19,13 @@ a { color: inherit; }
 
 .top { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
   padding: 12px 24px; background: var(--accent); color: var(--accent-ink); }
-.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; margin-right: 8px; }
 .mark { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: var(--accent-ink);
   color: var(--accent); font-weight: 800; font-size: 14px; letter-spacing: .04em; }
+.apps { display: flex; flex-wrap: wrap; gap: 6px; margin-right: auto; }
+.apps a { color: var(--accent-ink); text-decoration: none; font-size: 14px; font-weight: 600; padding: 5px 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.45); }
+.apps a:hover { background: rgba(255,255,255,.15); }
 .who { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 14px; }
 .who a { color: var(--accent-ink); }
 .who select { font: inherit; padding: 4px 8px; border-radius: 6px; border: 0; }
