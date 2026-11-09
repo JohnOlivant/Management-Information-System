@@ -17,7 +17,8 @@ const pounds = p => p / 100;
 const month = d => d.slice(0, 7);
 const addDays = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
 const daysBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
-const round1 = n => Math.round(n * 10) / 10;
+// Hours to 2 decimal places, as Timesheets keeps them (a quarter hour is 0.25).
+const round2 = n => Math.round(n * 100) / 100;
 /** Job numbers are matched without regard to case or spaces, as people type them differently. */
 const jobKey = n => String(n || '').replace(/\s+/g, '').toUpperCase();
 
@@ -127,8 +128,8 @@ function hours(jobs, booked, today) {
     if (share !== null && share > 1) flag = 'over';
     else if (share !== null && share >= WARN_SHARE && j.status !== 'complete') flag = 'near';
     return {jobNumber: j.jobNumber, name: j.name, status: j.status, starts: j.startsOn, ends: j.endsOn,
-      quotedHours: j.quotedHours === null || j.quotedHours === undefined ? null : round1(Number(j.quotedHours)),
-      plannedHours: planned === null ? null : round1(planned), approvedHours: round1(approved), pendingHours: round1(pending),
+      quotedHours: j.quotedHours === null || j.quotedHours === undefined ? null : round2(Number(j.quotedHours)),
+      plannedHours: planned === null ? null : round2(planned), approvedHours: round2(approved), pendingHours: round2(pending),
       usedShare: share === null ? null : Math.round(share * 100), flag,
       lastBooked: b ? b.lastDate : null};
   });
@@ -138,8 +139,8 @@ function hours(jobs, booked, today) {
   return {
     today,
     over: rows.filter(r => r.flag === 'over').length, near: rows.filter(r => r.flag === 'near').length,
-    plannedHours: round1(live.reduce((s, r) => s + (r.plannedHours || 0), 0)),
-    usedHours: round1(live.reduce((s, r) => s + r.approvedHours + r.pendingHours, 0)),
+    plannedHours: round2(live.reduce((s, r) => s + (r.plannedHours || 0), 0)),
+    usedHours: round2(live.reduce((s, r) => s + r.approvedHours + r.pendingHours, 0)),
     warnAt: Math.round(WARN_SHARE * 100),
     jobs: rows,
   };
@@ -163,7 +164,7 @@ function fixes(quotes, jobs, booked, have = {quoting: true, scheduling: true, ti
   }
   for (const b of have.quoting ? booked.filter(b => b.kind === 'customer') : []) {
     const k = jobKey(b.jobNumber);
-    if (!quoteRefs.has(k)) add('Timesheets', 'Hours on a job number Quoting does not know', b.jobNumber, `${b.jobName}: ${round1(Number(b.approved) + Number(b.pending))} hours`,
+    if (!quoteRefs.has(k)) add('Timesheets', 'Hours on a job number Quoting does not know', b.jobNumber, `${b.jobName}: ${round2(Number(b.approved) + Number(b.pending))} hours`,
       'Check the job number in Timesheets matches the quote reference (for example Q00012).');
   }
   const order = {Quoting: 0, Scheduling: 1, Timesheets: 2};
