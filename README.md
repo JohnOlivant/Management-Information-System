@@ -2,6 +2,10 @@
 
 A forward-looking finance view for small UK construction firms and small manufacturers: pipeline, order book, WIP value, cash-in timing, capacity and margin forecast. It joins quotes, schedule and timesheets to the Xero ledger on one job number, and is delivered through the firm's accountant (Rule29 first).
 
+## The app
+
+[mis/](mis/README.md) holds the MIS itself. The first reports are the quote pipeline, the order book with expected cash in, hours by job, and things to fix, all built from Quoting, Scheduling and Timesheets. To put it live, follow [mis/deploy/RUNBOOK.md](mis/deploy/RUNBOOK.md).
+
 ## Documents
 
 - [Product description](docs/product-description.md): what the product is, who it is for, requirements and releases. The input to the development plan.

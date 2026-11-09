@@ -8,7 +8,7 @@ The apps sit under `rule29.co.uk`:
 | Timesheets | https://timesheets.rule29.co.uk | `/etc/timesheet/app.env` |
 | Scheduling | https://scheduling.rule29.co.uk | `/etc/scheduler/app.env` |
 | Quoting | https://quoting.rule29.co.uk | `/etc/quoting/app.env` |
-| MIS | https://management.rule29.co.uk | not built yet |
+| MIS | https://management.rule29.co.uk | `/etc/mis/app.env` (installed by `mis/deploy`) |
 
 One cookie, set for `rule29.co.uk`, is what makes one sign-in work across every app. Nothing changes for anyone until step 4, and step 4 can be undone one app at a time.
 
