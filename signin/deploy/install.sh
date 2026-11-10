@@ -5,7 +5,7 @@
 #
 # The argument is the parent domain every app sits under. The sign-in answers at signin.<domain> and
 # its cookie covers every <app>.<domain>. Each app's own address defaults to the names below; set
-# MIS_HOST, QUOTING_HOST, SCHEDULING_HOST or TIMESHEETS_HOST to change one on the first install.
+# MIS_HOST, QUOTING_HOST, SCHEDULING_HOST, TIMESHEETS_HOST or FINANCE_HOST to change one on the first install.
 #
 # Safe to run again for every release: it keeps the database, the settings and app list in
 # /etc/signin, and the web server entry, applies only new database files, and switches to the
@@ -84,9 +84,10 @@ SIGNIN_KEY_MIS=$(openssl rand -hex 32)
 SIGNIN_KEY_QUOTING=$(openssl rand -hex 32)
 SIGNIN_KEY_SCHEDULING=$(openssl rand -hex 32)
 SIGNIN_KEY_TIMESHEETS=$(openssl rand -hex 32)
+SIGNIN_KEY_FINANCE=$(openssl rand -hex 32)
 ENVFILE
   unset pw
-  echo "Made $ENV (the database password and the four app keys are only in there)."
+  echo "Made $ENV (the database password and the app keys are only in there)."
 else
   echo "Keeping $ENV."
 fi
@@ -98,6 +99,7 @@ if [ ! -f "$APPS" ]; then
   # Return addresses are only followed to these addresses, so they must be right.
   MIS_HOST=${MIS_HOST:-management.$DOMAIN} QUOTING_HOST=${QUOTING_HOST:-quoting.$DOMAIN} \
   SCHEDULING_HOST=${SCHEDULING_HOST:-scheduling.$DOMAIN} TIMESHEETS_HOST=${TIMESHEETS_HOST:-timesheets.$DOMAIN} \
+  FINANCE_HOST=${FINANCE_HOST:-finance.$DOMAIN} \
   "$NODE" -e '
     const fs = require("fs"), c = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
     for (const a of c.apps) {

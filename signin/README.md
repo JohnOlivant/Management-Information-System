@@ -1,6 +1,6 @@
 # Shared sign-in
 
-One sign-in page and one session for the four apps: Quoting, Scheduling, Timesheets and Management Information. Each app sends people here, the page shows that app's name and colour, and after sign-in they go straight back. Signing in to one app signs them in to all the apps their account opens; signing out signs them out of all of them.
+One sign-in page and one session for the apps: Quoting, Scheduling, Timesheets, Management Information and the Finance Control Centre. Each app sends people here, the page shows that app's name and colour, and after sign-in they go straight back. Signing in to one app signs them in to all the apps their account opens; signing out signs them out of all of them.
 
 Why and how it fits the apps: [docs/shared-sign-in.md](../docs/shared-sign-in.md).
 
@@ -48,7 +48,7 @@ A temporary password must be changed before any app opens. Forgotten passwords a
 | Variable | Meaning |
 | --- | --- |
 | `SIGNIN_ORIGIN` | This service's own address, e.g. `https://signin.example.co.uk`. Browser posts from any other address are refused. Must be https in production |
-| `COOKIE_DOMAIN` | The parent domain all four apps share, e.g. `example.co.uk`, so the session cookie reaches every app |
+| `COOKIE_DOMAIN` | The parent domain all the apps share, e.g. `example.co.uk`, so the session cookie reaches every app |
 | `DATABASE_URL` | PostgreSQL, as `rule29_signin_app`. Without it the service runs the in-memory demo (refused when `NODE_ENV=production`) |
 | `SIGNIN_KEY_QUOTING`, `SIGNIN_KEY_SCHEDULING`, `SIGNIN_KEY_TIMESHEETS`, `SIGNIN_KEY_MIS` | Each app's service key, 32+ random characters, used by that app to check sessions |
 | `APPS_FILE` | The apps file; defaults to `apps.json`. Production lists each app's real `homeUrl` (and any other `origins` it serves from) |

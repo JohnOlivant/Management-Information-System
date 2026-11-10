@@ -13,6 +13,7 @@ const DEFAULT_ROLES = {
     ['accounts', 'Accounts'], ['operations', 'Operations'], ['admin', 'Administrator']]},
   scheduling: {roles: [['scheduler', 'Scheduler'], ['admin', 'Administrator']]},
   timesheets: {roles: [['worker', 'Worker'], ['supervisor', 'Supervisor'], ['payroll', 'Payroll'], ['admin', 'Administrator']]},
+  finance: {roles: [['director', 'Director'], ['office', 'Office'], ['advisor', 'Advisor'], ['viewer', 'Viewer']]},
 };
 const ROLE_ID = /^[a-z][a-z0-9_-]{0,39}$/;
 

@@ -4,9 +4,9 @@ const assert = require('node:assert/strict');
 const {validateApps, safeReturn, normaliseRole} = require('../src/apps');
 const base = {id: 'quoting', name: 'Quoting', tagline: 'x', mark: 'Q', accent: '#000000', accentInk: '#ffffff', homeUrl: 'https://quoting.firm.test/'};
 
-test('the shipped apps file lists the four apps', () => {
+test('the shipped apps file lists the five apps', () => {
   const cfg = validateApps(require('../apps.json'));
-  assert.deepEqual(cfg.apps.map(a => a.id), ['mis', 'quoting', 'scheduling', 'timesheets']);
+  assert.deepEqual(cfg.apps.map(a => a.id), ['mis', 'quoting', 'scheduling', 'timesheets', 'finance']);
 });
 
 test('apps must use https away from this computer, and ids must be unique', () => {
@@ -30,7 +30,7 @@ test('each app gets its roles from the apps file, or the built-in list when the 
   const cfg = validateApps(require('../apps.json'));
   const roles = Object.fromEntries(cfg.apps.map(a => [a.id, a.roles.map(r => r.id).join(' ')]));
   assert.deepEqual(roles, {mis: 'admin viewer', quoting: 'estimator approver rate_admin accounts operations admin',
-    scheduling: 'scheduler admin', timesheets: 'worker supervisor payroll admin'});
+    scheduling: 'scheduler admin', timesheets: 'worker supervisor payroll admin', finance: 'director office advisor viewer'});
   assert.deepEqual(cfg.apps.filter(a => a.multipleRoles).map(a => a.id), ['quoting']);
   const own = validateApps({apps: [{...base, roles: [{id: 'sales', name: 'Sales'}], multipleRoles: false}]}).apps[0];
   assert.deepEqual([own.roles, own.multipleRoles], [[{id: 'sales', name: 'Sales'}], false]);
