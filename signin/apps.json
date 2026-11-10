@@ -37,6 +37,15 @@
       "accent": "#bd7112",
       "accentInk": "#16222c",
       "homeUrl": "http://localhost:3000/"
+    },
+    {
+      "id": "finance",
+      "name": "Finance Control Centre",
+      "tagline": "Monthly KPIs, cash and health from your Xero ledger",
+      "mark": "FC",
+      "accent": "#4f4386",
+      "accentInk": "#ffffff",
+      "homeUrl": "http://localhost:3500/"
     }
   ]
 }

@@ -34,7 +34,7 @@ function suite(name, makeStore) {
       assert.equal(good.body.app.name, 'Quoting');
       assert.equal(good.body.returnTo, 'http://localhost:3100/estimates/42');
       assert.equal(good.body.signedIn, null);
-      assert.equal(good.body.allApps.length, 4);
+      assert.equal(good.body.allApps.length, 5);
       for (const evil of ['https://evil.example/', 'http://localhost:3000/', '//evil.example', 'javascript:alert(1)', 'http://user:pw@localhost:3100/']) {
         const r = await svc.call('/api/state?app=quoting&return=' + encodeURIComponent(evil));
         assert.equal(r.body.returnTo, null, evil);
